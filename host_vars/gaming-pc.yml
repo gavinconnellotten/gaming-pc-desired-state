@@ -1,0 +1,26 @@
+---
+# Host-specific configuration for gaming-pc.
+#
+# The SMB section below is a PLACEHOLDER. Run ./scripts/setup-smb-credentials.sh
+# and paste the YAML it prints over the top of it — the script knows the real
+# uid/gid and generates matching credential filenames.
+#
+# No passwords here. They live in root-owned 0600 files under
+# /etc/samba/credentials, referenced by path.
+
+# Ownership applied to everything inside the CIFS mounts.
+smb_mounts_uid: 1000
+smb_mounts_gid: 1000
+
+smb_mounts:
+  - name: nas-media
+    server: CHANGEME-server-or-ip
+    share: CHANGEME-share-name
+    mountpoint: /mnt/media
+    credentials: /etc/samba/credentials/nas-media
+
+  - name: nas-storage
+    server: CHANGEME-server-or-ip
+    share: CHANGEME-share-name
+    mountpoint: /mnt/storage
+    credentials: /etc/samba/credentials/nas-storage

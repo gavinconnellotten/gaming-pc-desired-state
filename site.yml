@@ -5,3 +5,4 @@
 
   roles:
     - claude_desktop
+    - smb_mounts

@@ -27,3 +27,24 @@ into this repo yet.
     result via `ansible-playbook` instead of hand-run commands.
   - Voice mode required no extra setup — it's a standard feature of the
     Claude Desktop app once signed in.
+- **State capture**: added `scripts/capture-state.sh`, a read-only inventory
+  of the machine (OS, hardware, GPU, storage, network mounts, repos, packages,
+  flatpaks, services, kernel tuning, KDE, gaming stack, user environment). No
+  `sudo` needed; output lands in `state/`. Redacts usernames, hostname, MACs,
+  UUIDs and serials by default since the output is committed. Deliberately
+  timestamp-free apart from the summary, so re-runs diff cleanly against the
+  previous capture and show real drift.
+- **SMB shares**: added `roles/smb_mounts` plus
+  `scripts/setup-smb-credentials.sh` to mount two network shares at fixed
+  paths. Not yet applied — the share details in `host_vars/gaming-pc.yml` are
+  still placeholders, and the existing hand-written `/etc/fstab` entries need
+  reviewing first.
+  - The shares previously appeared in Dolphin but were empty. That's the
+    signature of a mount that failed, leaving the bare mountpoint directory
+    visible underneath — see `roles/smb_mounts/README.md` for the causes.
+  - The role uses `_netdev` + `x-systemd.automount` + `nofail` so mounting
+    happens on first access rather than racing the network at boot, and an
+    unreachable NAS can't delay or block startup.
+  - It refuses to run if credential files are missing, and refuses to run if
+    `/etc/fstab` has unmanaged CIFS lines that would conflict with its own
+    managed block.
