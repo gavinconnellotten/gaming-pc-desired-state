@@ -12,8 +12,33 @@
     state: present
   register: claude_desktop_install
 
+# Diagnostics must NOT inherit the play's become: true. --doctor checks
+# things that are per-user — KVM device access, group membership, config
+# paths under $HOME — so running it as root reports on root and would happily
+# pass while the actual desktop user can't use Cowork at all.
+- name: Determine the user diagnostics will run as
+  ansible.builtin.command: id -un
+  become: false
+  changed_when: false
+  register: claude_desktop_doctor_identity
+  when: claude_desktop_run_doctor | bool
+
+# Guards the case where the playbook is invoked via `sudo ansible-playbook`:
+# become: false then still leaves us as root, and the diagnostics would be
+# misleading in exactly the way this task ordering exists to prevent.
+- name: Warn if diagnostics would still run as root
+  ansible.builtin.debug:
+    msg: >-
+      Diagnostics are running as root, so the KVM access and config paths
+      below describe root rather than your desktop user. Run the playbook as
+      yourself with --ask-become-pass instead of under sudo.
+  when:
+    - claude_desktop_run_doctor | bool
+    - claude_desktop_doctor_identity.stdout == 'root'
+
 - name: Run Claude Desktop diagnostics
   ansible.builtin.command: "/usr/bin/{{ claude_desktop_package }} --doctor"
+  become: false
   register: claude_desktop_doctor
   changed_when: false
   failed_when: false
@@ -21,5 +46,7 @@
 
 - name: Show diagnostics output
   ansible.builtin.debug:
-    var: claude_desktop_doctor.stdout_lines
+    msg: >-
+      Diagnostics as {{ claude_desktop_doctor_identity.stdout }}:
+      {{ claude_desktop_doctor.stdout_lines }}
   when: claude_desktop_run_doctor | bool

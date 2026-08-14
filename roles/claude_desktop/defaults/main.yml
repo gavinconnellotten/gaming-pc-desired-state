@@ -15,4 +15,7 @@ claude_desktop_extra_packages:
 
 # Run `claude-desktop-unofficial --doctor` at the end of the play and print
 # its output, so drift/regressions are visible in the playbook run itself.
+# Runs as the invoking user rather than root — its checks (KVM access, group
+# membership, $HOME config paths) are per-user, and root's answers say nothing
+# about whether the desktop user can actually use Cowork.
 claude_desktop_run_doctor: true

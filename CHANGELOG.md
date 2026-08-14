@@ -27,6 +27,13 @@ into this repo yet.
     result via `ansible-playbook` instead of hand-run commands.
   - Voice mode required no extra setup — it's a standard feature of the
     Claude Desktop app once signed in.
+- **Claude Desktop diagnostics fix**: `--doctor` was inheriting the play's
+  `become: true` and so reporting on root. Its checks are per-user (access to
+  `/dev/kvm`, `kvm` group membership, `$HOME` config paths), so as root they
+  pass trivially regardless of whether the desktop user can actually use
+  Cowork. Now runs with `become: false`, prints which user it ran as, and
+  warns if it still ends up as root (i.e. the playbook was invoked under
+  `sudo` rather than with `--ask-become-pass`).
 - **State capture**: added `scripts/capture-state.sh`, a read-only inventory
   of the machine (OS, hardware, GPU, storage, network mounts, repos, packages,
   flatpaks, services, kernel tuning, KDE, gaming stack, user environment). No
