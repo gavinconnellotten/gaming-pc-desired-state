@@ -134,10 +134,17 @@ Prefer detecting-and-reporting over auto-fixing for anything boot-critical —
 
 ## History
 
-Started 2026-08-14 in a Claude Code web session (a cloud container with no
-access to the machine itself), which is why work up to commit `f2f4efa` was
-written blind and relayed by hand. Running locally from here on means you can
-actually see the machine — read `/etc/fstab`, check `journalctl`, test-mount
-shares, and iterate. Use that.
+Started 2026-08-14 in Claude Code **on the web** (claude.ai/code) — the same
+Claude Code, but executing in an Anthropic cloud container rather than on
+`gaming-pc`. That session could see this git repo and nothing else: no
+`/etc/fstab`, no `journalctl`, no NAS on the LAN. Everything through commit
+`3b48904` was therefore written blind, against the owner's descriptions, and
+relayed by hand.
+
+Running locally you have none of that limitation. Read the real files, check
+the real journal, test-mount the real shares, and iterate until things
+actually work — rather than reasoning about what's probably wrong. Verify the
+assumptions baked into `roles/smb_mounts` against the machine rather than
+trusting them.
 
 Branch: `claude/fedora-nobara-gaming-setup-ps0v2v` (not yet merged to `main`).
