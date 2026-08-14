@@ -10,6 +10,7 @@ Ansible playbook in this repo, rather than by re-following manual notes.
 
 ## Layout
 
+- `CLAUDE.md` — context for Claude Code sessions working in this repo.
 - `site.yml` — top-level playbook, run against `localhost`.
 - `roles/` — one role per concern (e.g. `claude_desktop`, `smb_mounts`).
 - `host_vars/gaming-pc.yml` — machine-specific settings (share definitions).
