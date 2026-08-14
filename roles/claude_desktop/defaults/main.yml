@@ -1,0 +1,18 @@
+---
+# Community RPM packaging of Anthropic's official Claude Desktop Linux beta.
+# See: https://github.com/aaddrick/claude-desktop-debian
+claude_desktop_repo_url: https://pkg.claude-desktop-debian.dev/rpm/claude-desktop-unofficial.repo
+claude_desktop_repo_file: /etc/yum.repos.d/claude-desktop-unofficial.repo
+claude_desktop_package: claude-desktop-unofficial
+
+# nodejs: required for MCP servers run from Claude Desktop.
+# qemu-system-x86 + edk2-ovmf: KVM/QEMU/OVMF stack required for Claude's
+# "Cowork" sandboxed execution mode.
+claude_desktop_extra_packages:
+  - nodejs
+  - qemu-system-x86
+  - edk2-ovmf
+
+# Run `claude-desktop-unofficial --doctor` at the end of the play and print
+# its output, so drift/regressions are visible in the playbook run itself.
+claude_desktop_run_doctor: true

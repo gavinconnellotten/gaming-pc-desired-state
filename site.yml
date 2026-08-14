@@ -1,0 +1,7 @@
+---
+- name: Configure gaming-pc desired state
+  hosts: local
+  become: true
+
+  roles:
+    - claude_desktop

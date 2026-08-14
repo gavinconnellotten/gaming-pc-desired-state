@@ -1,0 +1,25 @@
+---
+- name: Add claude-desktop-unofficial DNF repo
+  ansible.builtin.get_url:
+    url: "{{ claude_desktop_repo_url }}"
+    dest: "{{ claude_desktop_repo_file }}"
+    mode: "0644"
+    force: true
+
+- name: Install Claude Desktop and its MCP/Cowork dependencies
+  ansible.builtin.dnf:
+    name: "{{ [claude_desktop_package] + claude_desktop_extra_packages }}"
+    state: present
+  register: claude_desktop_install
+
+- name: Run Claude Desktop diagnostics
+  ansible.builtin.command: "/usr/bin/{{ claude_desktop_package }} --doctor"
+  register: claude_desktop_doctor
+  changed_when: false
+  failed_when: false
+  when: claude_desktop_run_doctor | bool
+
+- name: Show diagnostics output
+  ansible.builtin.debug:
+    var: claude_desktop_doctor.stdout_lines
+  when: claude_desktop_run_doctor | bool
