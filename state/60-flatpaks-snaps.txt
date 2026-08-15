@@ -1,0 +1,27 @@
+## Flatpak applications
+
+com.github.tchx84.Flatseal	2.4.1	stable	flathub
+io.github.kolunmi.Bazaar	0.9.2	stable	flathub
+
+## Flatpak runtimes
+
+org.freedesktop.Platform.GL.default	25.08	flathub
+org.freedesktop.Platform.GL.default	25.08-extra	flathub
+org.freedesktop.Platform.GL.nvidia-595-84	1.4	flathub
+org.freedesktop.Platform.VAAPI.nvidia	25.08	flathub
+org.freedesktop.Platform.codecs-extra	25.08-extra	flathub
+org.gnome.Platform	50	flathub
+
+## Flatpak remotes
+
+flathub	https://dl.flathub.org/repo/	system
+flathub-beta	https://dl.flathub.org/beta-repo/	system
+flathub	https://dl.flathub.org/repo/	user
+
+## Snap applications (note the publisher)
+
+Name              Version   Rev    Tracking       Publisher     Notes
+claudeai-desktop  1.0.0     1      latest/stable  prevailexcel  -
+core22            20260225  2411   latest/stable  canonical**   base
+snapd             2.76.1    27591  latest/stable  canonical**   snapd
+
