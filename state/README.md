@@ -25,6 +25,26 @@ One deliberate exception to "only reads": the script lists `/mnt/*` and
 `/media/*`, and touching a mountpoint is what triggers an
 `x-systemd.automount` to attach. That's transient and self-reversing.
 
+## Reading `57-post-iso-additions.txt`
+
+The file to open first when asking "what would a rebuild lose?".
+
+`dnf` transaction 1 is the package set baked into the installation image,
+stamped when the ISO was built rather than when this machine was installed.
+Everything after it happened here. That boundary is derived from the machine's
+own records, not from anyone's memory — which matters, because the packages
+that made Steam work were installed once, months ago, by a Nobara helper
+nobody wrote down.
+
+It covers RPMs only. Two other things drift and are recorded elsewhere:
+
+- **Flatpaks and Snaps** — `60-flatpaks-snaps.txt`. Watch the Snap publisher
+  column; that's how a third-party `claudeai-desktop` snap was found sitting
+  alongside the packaged Claude Desktop this repo actually manages.
+- **Proton builds** — `95-gaming-stack.txt`. ProtonPlus unpacks these into
+  `~/.steam/root/compatibilitytools.d/` as plain directories, so no package
+  manager knows they exist and a rebuild silently loses them.
+
 ## Reading `45-network-mounts.txt`
 
 **An empty "currently mounted" section does not mean the shares are broken.**
@@ -64,7 +84,8 @@ exist and what their permissions are, nothing more.
 | `50-repos.txt` | DNF repositories and configuration |
 | `55-packages-userinstalled.txt` | Explicitly installed packages — the list that matters |
 | `56-packages-all.txt` | Every installed RPM, dependencies included |
-| `60-flatpaks.txt` | Flatpak apps, runtimes and remotes |
+| `57-post-iso-additions.txt` | **What's been added since the ISO** — see below |
+| `60-flatpaks-snaps.txt` | Flatpak apps, runtimes, remotes, and Snap packages |
 | `70-services.txt` | Enabled units, timers, failed units |
 | `80-kernel-tuning.txt` | sysctl, modprobe, udev, limits, CPU governor |
 | `90-desktop-kde.txt` | Plasma version, displays, config file inventory |

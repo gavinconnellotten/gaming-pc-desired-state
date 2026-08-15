@@ -88,6 +88,52 @@ show() {
     fi
 }
 
+# post_iso_packages — packages explicitly installed since the ISO was built.
+#
+# dnf transaction 1 is the image's own package set, recorded when Nobara built
+# the ISO — months before this machine was installed, and carried onto disk by
+# anaconda. Everything from transaction 2 onward happened *here*. That boundary
+# is the machine's own record of what has been added by hand, which is exactly
+# the drift this repo exists to codify: without it, "what did I install to make
+# Steam work?" is answerable only from memory.
+#
+# Only Action=Install with Reason=User — dependencies and upgrades are noise.
+# Anything since removed is filtered out against the current rpmdb.
+post_iso_packages() {
+    if ! have dnf; then
+        printf '(dnf not found)\n'
+        return 0
+    fi
+
+    local last added installed
+    last=$(dnf history list 2>/dev/null |
+        awk '$1 ~ /^[0-9]+$/ {print $1}' | sort -n | tail -1)
+
+    if [ -z "$last" ] || [ "$last" -lt 2 ]; then
+        printf '(no transactions since the initial image)\n'
+        return 0
+    fi
+
+    # Strips name-epoch:version-release.arch, and the no-epoch variant.
+    added=$(
+        for i in $(seq 2 "$last"); do
+            dnf history info "$i" 2>/dev/null |
+                awk '$1 == "Install" && $3 == "User" {print $2}'
+        done |
+            sed -E 's/-[0-9]+:.*//; s/-[0-9][^-]*-[^-]*\.(x86_64|i686|noarch)$//' |
+            sort -u
+    )
+    installed=$(rpm -qa --qf '%{NAME}\n' 2>/dev/null | sort -u)
+
+    added=$(comm -12 <(printf '%s\n' "$added") <(printf '%s\n' "$installed"))
+
+    if [ -z "$added" ]; then
+        printf '(nothing explicitly installed since the image)\n'
+    else
+        printf '%s\n' "$added"
+    fi
+}
+
 # redact — mask identifiers on the way to disk.
 #
 # Deliberately does NOT touch IP addresses: we don't capture any networking
@@ -296,12 +342,43 @@ printf 'Capturing state to %s/ (redaction: %s)\n' "$OUT_DIR" \
         sh -c "rpm -qa --qf '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' | sort"
 } | write 56-packages-all.txt
 
+# --------------------------------------------------------------------------
+# Drift from the installation image
+#
+# The most useful file here when rebuilding: what this machine has that a fresh
+# ISO install would not. Steam's runtime dependencies and the multimedia codecs
+# are both in this list, and neither is obvious from memory.
+# --------------------------------------------------------------------------
+{
+    printf '## What this file is\n\n'
+    printf 'dnf transaction 1 is the package set baked into the installation\n'
+    printf 'image, recorded when the ISO was built rather than when this machine\n'
+    printf 'was installed. Everything after it happened here — so the list below\n'
+    printf 'is what a fresh install would NOT give you, and therefore what the\n'
+    printf 'playbooks need to cover.\n\n'
+    printf 'Package managers other than dnf are not represented here; see\n'
+    printf '60-flatpaks-snaps.txt, and 95-gaming-stack.txt for Proton builds,\n'
+    printf 'which are unpacked tarballs that no package manager knows about.\n\n'
+
+    printf '## Packages explicitly installed since the image\n\n'
+    post_iso_packages
+    printf '\n'
+
+    capture "Transaction history" sh -c \
+        "dnf history list 2>/dev/null || echo '(dnf history unavailable)'"
+} | write 57-post-iso-additions.txt
+
 {
     capture "Flatpak applications" flatpak list --app \
         --columns=application,version,branch,origin
     capture "Flatpak runtimes" flatpak list --runtime --columns=application,branch,origin
     capture "Flatpak remotes" flatpak remotes --columns=name,url,options
-} | write 60-flatpaks.txt
+    # Snaps were a blind spot until 2026-08-15. Capturing them immediately
+    # surfaced a third-party claudeai-desktop snap that nobody remembered
+    # installing — the Publisher column is the point of this section.
+    capture "Snap applications (note the publisher)" sh -c \
+        "snap list 2>/dev/null || echo '(snapd not installed, or no snaps)'"
+} | write 60-flatpaks-snaps.txt
 
 # --------------------------------------------------------------------------
 # Services and timers
