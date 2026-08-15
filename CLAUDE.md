@@ -59,7 +59,32 @@ diagnostics gotcha below; this distinction is load-bearing.
 | State capture | `scripts/capture-state.sh` → `state/` (baseline captured 2026-08-15) |
 | NVIDIA driver | Installed out-of-band, deliberately unmanaged |
 | Dotfiles / KDE settings | Not managed yet (intended scope, not started) |
-| Gaming stack (Steam/Proton/etc) | Not managed yet |
+| Gaming stack | **Post-install additions managed** — `roles/gaming`. Nobara's own packages deliberately unmanaged |
+
+## Manage the delta, not the distribution
+
+The organising principle for anything Nobara also ships. `dnf` transaction 1 is
+the package set baked into the ISO; everything after it happened on this
+machine. `state/57-post-iso-additions.txt` computes that boundary from dnf's
+own history, so "what did I install to fix Steam?" is answerable from the
+machine rather than from memory.
+
+Roles should manage that delta and leave the rest alone. `roles/gaming`
+installs the runtime dependencies and codecs that were added by hand, and
+pointedly does **not** install Steam, Lutris, gamescope, MangoHud or OBS —
+those come with the image and Nobara updates them on its own cycle.
+
+Three things drift and only one is a package manager's business:
+
+| Kind | Where it's recorded |
+|---|---|
+| RPMs | `state/57-post-iso-additions.txt` |
+| Flatpaks and Snaps | `state/60-flatpaks-snaps.txt` |
+| Unpacked tarballs (Proton-GE) | `state/95-gaming-stack.txt` |
+
+The third is the dangerous one: ProtonPlus drops Proton builds into
+`~/.steam/root/compatibilitytools.d` as plain directories that no package
+manager knows about, so a rebuild loses them silently.
 
 ## SMB shares — done
 

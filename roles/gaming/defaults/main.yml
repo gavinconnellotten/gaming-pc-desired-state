@@ -1,0 +1,65 @@
+---
+# Runtime dependencies that were installed by hand after the ISO, without
+# which Steam does not start. Taken from dnf transaction 7 on 2026-08-08:
+#
+#   dnf install -y rocm-meta nobara-resolve-runtime zlib libxcrypt-compat \
+#                  python3.11 python3.11-libs alsa-plugins-pulseaudio
+#
+# libxcrypt-compat is the important one: it provides libcrypt.so.1, which
+# Fedora dropped and Steam still links against. Its absence is the classic
+# "Steam installed fine and won't launch" on this distro family.
+#
+# rocm-meta from that same command is deliberately NOT here — it's AMD's
+# compute stack and this machine has an NVIDIA GPU. It came along because the
+# command was run wholesale, not because anything needed it.
+#
+# zlib and nobara-resolve-runtime are also omitted: both ship with the image,
+# so that install was a no-op for them.
+gaming_runtime_packages:
+  - libxcrypt-compat
+  - python3.11
+  - python3.11-libs
+  - alsa-plugins-pulseaudio
+
+# Multimedia codecs, from dnf transaction 12 on 2026-08-10, reproduced verbatim
+# including the explicit architectures. The .i686 variants are not optional
+# padding — 32-bit games and older Proton builds need them, and installing only
+# the x86_64 half produces video that silently fails to decode in-game.
+gaming_manage_codecs: true
+gaming_codec_packages:
+  - mesa-libgallium-freeworld.x86_64
+  - mesa-libgallium-freeworld.i686
+  - libavcodec-free.i686
+  - libswresample-free.i686
+  - libavformat-free.i686
+  - libswscale-free.i686
+  - libavfilter-free.i686
+  - libavdevice-free.i686
+  - openh264.x86_64
+  - openh264.i686
+  - mozilla-openh264.x86_64
+  - x264-libs.x86_64
+  - x264-libs.i686
+  - x265-libs.x86_64
+  - x265-libs.i686
+  - libavcodec-freeworld.x86_64
+  - libavcodec-freeworld.i686
+  - libheif-freeworld.x86_64
+  - libheif-freeworld.i686
+  - pipewire-codec-aptx
+
+# Proton-GE. Pinned deliberately: "whatever's latest" isn't a desired state,
+# and a Proton upgrade is exactly the kind of change that breaks one game while
+# fixing another. Bumping this is a decision, so it should be a commit.
+#
+# ProtonPlus (preinstalled on Nobara) does the same job interactively. This
+# role exists so a rebuilt machine gets the same build without anyone having to
+# remember which one it was.
+gaming_manage_proton: true
+gaming_proton_ge_version: GE-Proton11-3
+gaming_proton_ge_base_url: https://github.com/GloriousEggroll/proton-ge-custom/releases/download
+
+# Fetched from the release rather than pasted in, so pinning a version doesn't
+# also mean pinning a hash by hand. get_url reads the published .sha512sum.
+gaming_proton_ge_url: "{{ gaming_proton_ge_base_url }}/{{ gaming_proton_ge_version }}/{{ gaming_proton_ge_version }}.tar.gz"
+gaming_proton_ge_checksum_url: "{{ gaming_proton_ge_base_url }}/{{ gaming_proton_ge_version }}/{{ gaming_proton_ge_version }}.sha512sum"

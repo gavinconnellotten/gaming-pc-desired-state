@@ -106,6 +106,56 @@ into this repo yet.
     worth reading again.
 - **Baseline recaptured** post-reboot, replacing the pre-reboot one.
 
+## 2026-08-15 (later)
+
+- **Answered "what did I install to fix Steam?" from the machine rather than
+  memory.** `dnf` transaction 1 is the package set baked into the ISO, stamped
+  2026-04-24 when Nobara built the image; everything from transaction 2
+  (2026-08-08) happened here. That boundary yields an exact list — 32
+  explicitly-installed packages.
+  - The likely fix was transaction 7:
+    `dnf install -y rocm-meta nobara-resolve-runtime zlib libxcrypt-compat
+    python3.11 python3.11-libs alsa-plugins-pulseaudio`. `libxcrypt-compat`
+    provides `libcrypt.so.1`, which Fedora dropped and Steam still links
+    against — the classic "installs fine, won't launch". Reconstructed from
+    evidence, so treat it as most-likely rather than certain; the Proton-GE
+    install on 08-10 and the NVIDIA i686 libraries on 08-12 are also
+    candidates.
+- **`capture-state.sh` learned to record drift from the image.**
+  - New `state/57-post-iso-additions.txt` computes the post-ISO delta from dnf
+    history. This is the file to open when asking what a rebuild would lose.
+  - Snaps were a complete blind spot and are now captured, in
+    `state/60-flatpaks-snaps.txt` (renamed from `60-flatpaks.txt`).
+- **Adding snap capture immediately found something.** A `claudeai-desktop`
+  snap, publisher "Chimeremeze Prevail Ejimadu (prevailexcel)", an unofficial
+  third-party Electron wrapper — unrelated to the `claude-desktop-unofficial`
+  RPM this repo manages. Installed 08-12, two days before the RPM, so probably
+  an abandoned first attempt. Not running. Flagged for removal; not touched.
+- **New `roles/gaming`**, following the principle *manage the delta, not the
+  distribution*:
+  - Installs the runtime dependencies and the codec set (verbatim from
+    transaction 12, `.i686` architectures included — the 32-bit halves are
+    what older Proton builds and 32-bit games need).
+  - Deliberately does **not** manage Steam, Lutris, Heroic, gamescope,
+    gamemode, MangoHud or OBS. They ship with the image and Nobara updates
+    them; managing them here would fight `nobara-sync`.
+  - Omits `rocm-meta` from that install line — AMD's compute stack on an
+    NVIDIA machine, along for the ride because the command was run wholesale.
+  - Installs Proton-GE pinned to `GE-Proton11-3`, checksum-verified against
+    the release's own `.sha512sum` so pinning a version doesn't also mean
+    pasting a hash nobody re-verifies.
+  - **Refuses to run as root.** `compatibilitytools.d` is under `$HOME`, so
+    under `sudo` the build lands in `/root` where Steam never looks — and the
+    run would report success. Same class of bug as `claude_desktop`'s
+    `--doctor` gotcha. It also resolves the home directory with `getent`
+    rather than `ansible_env.HOME`, which is already root's once the play's
+    `become` is in effect.
+  - Reports Proton builds it doesn't manage. `Proton-GE Latest`, installed via
+    ProtonPlus, is flagged as one a rebuild won't restore.
+  - Verified live as the desktop user: correct home resolution, download and
+    unpack skipped for the already-present pinned build, idempotent on a second
+    run, and clean under `--check`.
+
 ## 2026-08-14
 
 - **Base machine**: newly built gaming PC, `gaming-pc`, running Nobara Linux

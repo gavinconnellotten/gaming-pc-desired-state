@@ -1,0 +1,146 @@
+---
+# Steam, Lutris, Heroic, gamescope, gamemode, MangoHud and OBS are all
+# deliberately absent from this role. They ship with the Nobara image and
+# Nobara updates them on its own cycle — force-managing them here would fight
+# nobara-sync and cause exactly the drift this repo exists to prevent. What's
+# managed below is only what was added by hand after the install, which is the
+# part a rebuild would otherwise lose.
+
+- name: Install the runtime dependencies Steam needs
+  ansible.builtin.dnf:
+    name: "{{ gaming_runtime_packages }}"
+    state: present
+  when: gaming_runtime_packages | length > 0
+
+- name: Install multimedia codecs
+  ansible.builtin.dnf:
+    name: "{{ gaming_codec_packages }}"
+    state: present
+  when: gaming_manage_codecs | bool
+
+# ---------------------------------------------------------------------------
+# Proton-GE
+#
+# Steam reads compatibility tools from a directory under the user's HOME, so
+# every task below must run as the desktop user rather than root. This is the
+# same trap as claude_desktop's --doctor: run it under become and it succeeds
+# against /root, reports success, and the desktop user gets nothing.
+# ---------------------------------------------------------------------------
+
+- name: Determine the user Proton will be installed for
+  ansible.builtin.command: id -un
+  become: false
+  changed_when: false
+  check_mode: false
+  register: gaming_user
+  when: gaming_manage_proton | bool
+
+# Refuses rather than warns. A Proton build unpacked into /root is invisible to
+# Steam and silently useless — better to stop than to report success.
+- name: Fail if Proton would be installed for root
+  ansible.builtin.fail:
+    msg: >-
+      Proton would be installed into root's home, where Steam will never see
+      it. Run the playbook as your desktop user with --ask-become-pass rather
+      than under sudo.
+  when:
+    - gaming_manage_proton | bool
+    - gaming_user.stdout == 'root'
+
+# getent rather than ansible_env.HOME: facts are gathered with the play's
+# become in effect, so HOME can already be root's by the time we read it.
+- name: Resolve that user's home directory
+  ansible.builtin.command: "getent passwd {{ gaming_user.stdout }}"
+  become: false
+  changed_when: false
+  check_mode: false
+  register: gaming_passwd
+  when: gaming_manage_proton | bool
+
+- name: Set the Proton paths
+  ansible.builtin.set_fact:
+    gaming_home: "{{ gaming_passwd.stdout.split(':')[5] }}"
+    gaming_compat_dir: "{{ gaming_passwd.stdout.split(':')[5] }}/.steam/root/compatibilitytools.d"
+    gaming_download_dir: "{{ gaming_passwd.stdout.split(':')[5] }}/.cache/proton-ge"
+  when: gaming_manage_proton | bool
+
+- name: Ensure the compatibility tools and download directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  become: false
+  loop:
+    - "{{ gaming_compat_dir }}"
+    - "{{ gaming_download_dir }}"
+  when: gaming_manage_proton | bool
+
+- name: Check whether the pinned Proton build is already installed
+  ansible.builtin.stat:
+    path: "{{ gaming_compat_dir }}/{{ gaming_proton_ge_version }}"
+  become: false
+  register: gaming_proton_present
+  when: gaming_manage_proton | bool
+
+# The checksum comes from the release's own .sha512sum, so a pinned version
+# doesn't also mean a hash pasted in here that nobody will ever re-verify.
+- name: Download the pinned Proton-GE release
+  ansible.builtin.get_url:
+    url: "{{ gaming_proton_ge_url }}"
+    dest: "{{ gaming_download_dir }}/{{ gaming_proton_ge_version }}.tar.gz"
+    checksum: "sha512:{{ gaming_proton_ge_checksum_url }}"
+    mode: "0644"
+  become: false
+  when:
+    - gaming_manage_proton | bool
+    - not gaming_proton_present.stat.exists
+
+- name: Unpack Proton-GE into Steam's compatibility tools directory
+  ansible.builtin.unarchive:
+    src: "{{ gaming_download_dir }}/{{ gaming_proton_ge_version }}.tar.gz"
+    dest: "{{ gaming_compat_dir }}"
+    remote_src: true
+    creates: "{{ gaming_compat_dir }}/{{ gaming_proton_ge_version }}"
+  become: false
+  when:
+    - gaming_manage_proton | bool
+    - not gaming_proton_present.stat.exists
+
+# ---------------------------------------------------------------------------
+# Report
+# ---------------------------------------------------------------------------
+
+- name: List the Proton builds present
+  ansible.builtin.find:
+    paths: "{{ gaming_compat_dir }}"
+    file_type: directory
+    depth: 1
+  become: false
+  register: gaming_proton_builds
+  when: gaming_manage_proton | bool
+
+# Anything ProtonPlus put here by hand still works, but it won't survive a
+# rebuild — only what this role pins will. Worth naming rather than hiding.
+- name: Report Proton builds, flagging any this role does not manage
+  ansible.builtin.debug:
+    msg: >-
+      Proton builds in {{ gaming_compat_dir }}:
+      {% for b in gaming_proton_builds.files | map(attribute='path') | map('basename') | sort %}
+      {{ b }}{% if b == gaming_proton_ge_version %} (managed by this role)
+      {% else %} (UNMANAGED — installed by hand or by ProtonPlus; a rebuilt
+      machine will not get this one back)
+      {% endif %}
+      {% endfor %}
+  when:
+    - gaming_manage_proton | bool
+    - gaming_proton_builds.files | length > 0
+
+- name: Note that Steam must be restarted to pick up a new Proton build
+  ansible.builtin.debug:
+    msg: >-
+      {{ gaming_proton_ge_version }} was newly installed. Steam only scans
+      compatibilitytools.d at startup, so restart Steam before trying to
+      select it.
+  when:
+    - gaming_manage_proton | bool
+    - not gaming_proton_present.stat.exists

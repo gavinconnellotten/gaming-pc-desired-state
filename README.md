@@ -64,8 +64,8 @@ the logins in a password manager.
 | NVIDIA driver | Installed out-of-band (driver ISO), not yet managed here |
 | Claude Desktop | Managed via `roles/claude_desktop` |
 | SMB network shares | Managed via `roles/smb_mounts` |
-| State capture | `scripts/capture-state.sh` → `state/` |
-| SMB network shares | Managed via `roles/smb_mounts` |
+| Gaming stack | Post-install additions managed via `roles/gaming`; Nobara's own packages left alone |
+| Dotfiles / KDE settings | Not managed yet |
 | State capture | `scripts/capture-state.sh` → `state/` |
 
 See `CHANGELOG.md` for the history of what's been done manually vs.
