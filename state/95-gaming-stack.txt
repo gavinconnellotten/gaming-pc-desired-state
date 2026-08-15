@@ -1,0 +1,60 @@
+## Gaming tools present
+
+steam          present (/usr/bin/steam)
+lutris         present (/usr/bin/lutris)
+heroic         present (/usr/bin/heroic)
+bottles        absent
+gamemoded      present (/usr/bin/gamemoded)
+gamescope      present (/usr/bin/gamescope)
+mangohud       present (/usr/bin/mangohud)
+goverlay       present (/usr/bin/goverlay)
+protonup-qt    absent
+obs            present (/usr/bin/obs)
+vkcube         present (/usr/bin/vkcube)
+glxinfo        present (/usr/bin/glxinfo)
+vkbasalt       absent
+corectrl       absent
+
+## Gaming-related packages
+
+gamemode
+gamemode
+gamescope
+gamescope-libs
+gamescope-libs
+heroic-games-launcher
+kde-steamdeck-additions
+lutris
+mangohud
+mangohud
+protonplus
+steam
+steam-arch-transition
+steam-devices
+vkBasalt
+vkBasalt
+winehq-staging
+wine-staging
+winetricks
+
+## Steam library paths
+
+(no output)
+
+## Compatibility tools (Steam)
+
+GE-Proton11-3
+Proton-GE Latest
+
+## Proton versions in Steam apps
+
+(no output)
+
+## Game controllers
+
+(no output)
+
+## gamemode configuration
+
+(no /etc/gamemode.ini)
+

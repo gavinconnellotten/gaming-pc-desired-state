@@ -1,0 +1,66 @@
+## Groups for current user
+
+<user> wheel video users render
+
+## Login shell
+
+/bin/bash
+
+## Shell dotfiles present
+
+.bash_history
+.bash_logout
+.bash_profile
+.bashrc
+
+## Git configuration (global, keys only)
+
+(no output)
+
+## Flatpak overrides (user)
+
+(no output)
+
+## KVM device access
+
+crw-rw-rw- 1 root kvm 10, 232 Aug 14 15:47 /dev/kvm
+
+## Claude Desktop diagnostics (as this user)
+
+Claude Desktop Diagnostics
+================================
+
+[PASS] Installed version: 1.30096.1-3.2.2.fc42
+[PASS] Version: in sync with the official pool (1.30096.1)
+[PASS] Display server: Wayland (WAYLAND_DISPLAY=wayland-0)
+       Desktop: KDE
+       Mode: X11 via XWayland (default, for global hotkey support)
+       Tip: Set CLAUDE_USE_WAYLAND=1 for native Wayland
+            (disables global hotkeys)
+       IME note: Wayland session, Electron via XWayland — IBus path goes through XIM (lossy for some IMEs).
+       Tip: CLAUDE_USE_WAYLAND=1 enables native Wayland IME (loses global hotkeys).
+[PASS] Electron: v42.7.0 (/usr/lib/claude-desktop-unofficial/claude-desktop)
+[PASS] Chrome sandbox: permissions OK (/usr/lib/claude-desktop-unofficial/chrome-sandbox)
+[PASS] SingletonLock: held by running process (PID 10884)
+       Password store: upstream os_crypt autodetect (default)
+[PASS] Keyring: org.freedesktop.secrets reachable for credential encryption
+       Tray icon: upstream selection (no override)
+[PASS] MCP config: valid JSON (/home/<user>/.config/Claude/claude_desktop_config.json)
+       MCP servers configured: 0
+[PASS] Node.js: v22.22.2
+       Path: /usr/bin/node
+[PASS] Desktop entry: /usr/share/applications/claude-desktop-unofficial.desktop
+[PASS] Disk space: 896703MB free
+
+Cowork Mode
+----------------
+[PASS] KVM: /dev/kvm present and accessible
+[PASS] vsock: /dev/vhost-vsock present
+[PASS] QEMU: qemu-system-x86_64 found
+[PASS] Firmware: /usr/share/OVMF/OVMF_CODE.fd
+[PASS] virtiofsd: /usr/libexec/virtiofsd (client-probed path)
+       Cowork isolation: KVM (official)
+[PASS] Log file: 1KB (/home/<user>/.cache/claude-desktop-debian/launcher.log)
+
+All checks passed.
+

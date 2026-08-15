@@ -1,0 +1,56 @@
+## os-release
+
+NAME="Nobara Linux"
+VERSION="44 (KDE Plasma Desktop Edition)"
+ID=nobara
+ID_LIKE="rhel centos fedora"
+VERSION_ID=44
+VERSION_CODENAME=""
+PLATFORM_ID="platform:f44"
+PRETTY_NAME="Nobara Linux 44 (KDE Plasma Desktop Edition)"
+ANSI_COLOR="0;38;2;60;110;180"
+LOGO=nobara-logo-icon
+CPE_NAME="cpe:/o:nobaraproject:nobara:44"
+DEFAULT_HOSTNAME="nobara"
+HOME_URL="https://nobaraproject.org/"
+DOCUMENTATION_URL="https://wiki.nobaraproject.org/"
+SUPPORT_URL="https://www.nobaraproject.org/"
+BUG_REPORT_URL="https://github.com/nobara-project/rpm-baseos"
+REDHAT_BUGZILLA_PRODUCT="Nobara"
+REDHAT_BUGZILLA_PRODUCT_VERSION=44
+REDHAT_SUPPORT_PRODUCT="Nobara"
+REDHAT_SUPPORT_PRODUCT_VERSION=44
+SUPPORT_END=2026-12-02
+VARIANT="KDE Plasma Desktop Edition"
+VARIANT_ID=kde
+
+## Nobara release
+
+Nobara release 44 (Forty Four)
+
+## Kernel
+
+Linux 7.1.4-200.nobara.fc44.x86_64 x86_64 GNU/Linux
+
+## Installed kernels
+
+7.0.1-200.nobara.fc43.x86_64
+7.1.4-200.nobara.fc44.x86_64
+
+## Boot command line
+
+BOOT_IMAGE=(hd2,gpt2)/vmlinuz-7.1.4-200.nobara.fc44.x86_64 root=UUID=<uuid> ro rootflags=subvol=@ rd.driver.blacklist=nouveau rd.driver.blacklist=nova-core quiet splash resume=UUID=<uuid>
+
+## Secure Boot state
+
+SecureBoot disabled
+
+## SELinux mode
+
+Disabled
+
+## Bootloader entries
+
+(command failed: bootctl list)
+Failed to open '/boot/efi/loader/loader.conf': Permission denied
+

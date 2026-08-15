@@ -1,0 +1,47 @@
+## Enabled repositories
+
+repo id                   repo name
+brave-browser             Brave Browser
+claude-desktop-unofficial Claude Desktop (unofficial packaging) for Fedora/RHEL
+librewolf                 LibreWolf Software Repository
+nobara                    nobara
+nobara-appstream          nobara-appstream
+nobara-kernel-mainline    nobara-kernel-mainline
+nobara-nvidia-production  nobara-nvidia-production
+nobara-pikaos-additional  Nobara Additional Packages (Provided by PikaOS)
+nobara-updates            nobara-updates
+terra                     Terra 44
+
+## All repositories
+
+repo id                          repo name                                               status
+adoptium-temurin-java-repository Adoptium                                              disabled
+brave-browser                    Brave Browser                                          enabled
+claude-desktop-unofficial        Claude Desktop (unofficial packaging) for Fedora/RHEL  enabled
+librewolf                        LibreWolf Software Repository                          enabled
+nobara                           nobara                                                 enabled
+nobara-appstream                 nobara-appstream                                       enabled
+nobara-kernel-mainline           nobara-kernel-mainline                                 enabled
+nobara-nvidia-production         nobara-nvidia-production                               enabled
+nobara-pikaos-additional         Nobara Additional Packages (Provided by PikaOS)        enabled
+nobara-updates                   nobara-updates                                         enabled
+terra                            Terra 44                                               enabled
+
+## Repo definition files
+
+/etc/yum.repos.d/adoptium-temurin-java-repository.repo
+/etc/yum.repos.d/brave-browser.repo
+/etc/yum.repos.d/claude-desktop-unofficial.repo
+/etc/yum.repos.d/librewolf.repo
+/etc/yum.repos.d/nobara-kernel-mainline.repo
+/etc/yum.repos.d/nobara-pikaos-additional.repo
+/etc/yum.repos.d/nobara.repo
+/etc/yum.repos.d/nv-nvp.repo
+/etc/yum.repos.d/terra.repo
+
+## DNF configuration
+
+# see `man dnf.conf` for defaults and possible options
+
+[main]
+

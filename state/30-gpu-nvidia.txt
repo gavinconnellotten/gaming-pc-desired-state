@@ -1,0 +1,69 @@
+## GPU (PCI)
+
+2b:00.0 VGA compatible controller [0300]: NVIDIA Corporation AD106 [GeForce RTX 4060 Ti] [10de:2803] (rev a1)
+
+## nvidia-smi
+
+name, driver_version, vbios_version, memory.total [MiB], compute_cap
+NVIDIA GeForce RTX 4060 Ti, 595.91.07, 95.06.26.00.1E, 8188 MiB, 8.9
+
+## NVIDIA kernel modules
+
+aead                   16384  5 cifs,ccm,nvidia,mac80211,aesni_intel
+drm_ttm_helper         20480  2 nvidia_drm
+nvidia              16605184  477 nvidia_uvm,nvidia_modeset
+nvidia_drm            159744  70
+nvidia_modeset       2191360  17 nvidia_drm
+nvidia_uvm           2613248  0
+video                  81920  1 nvidia_modeset
+
+## NVIDIA packages
+
+akmods-0.6.2-9.fc44.noarch
+dkms-nvidia-595.91.07-2.fc44.noarch
+kmod-34.2-4.fc44.x86_64
+kmod-libs-34.2-4.fc44.x86_64
+kmodtool-1.2.1-1.fc44.noarch
+libnvidia-cfg-595.91.07-2.fc44.x86_64
+libnvidia-fbc-595.91.07-2.fc44.x86_64
+libnvidia-gpucomp-595.91.07-2.fc44.i686
+libnvidia-gpucomp-595.91.07-2.fc44.x86_64
+libnvidia-ml-595.91.07-2.fc44.i686
+libnvidia-ml-595.91.07-2.fc44.x86_64
+nvidia-driver-595.91.07-2.fc44.x86_64
+nvidia-driver-cuda-595.91.07-2.fc44.x86_64
+nvidia-driver-cuda-libs-595.91.07-2.fc44.i686
+nvidia-driver-cuda-libs-595.91.07-2.fc44.x86_64
+nvidia-driver-libs-595.91.07-2.fc44.i686
+nvidia-driver-libs-595.91.07-2.fc44.x86_64
+nvidia-gpu-firmware-20260622-1.fc44.noarch
+nvidia-kmod-common-595.91.07-2.fc44.noarch
+nvidia-libXNVCtrl-595.91.07-2.fc44.x86_64
+nvidia-modprobe-595.91.07-2.fc44.x86_64
+nvidia-persistenced-595.91.07-2.fc44.x86_64
+nvidia-settings-595.91.07-2.fc44.x86_64
+
+## modprobe.d (NVIDIA-related)
+
+/etc/modprobe.d/nvidia-modeset.conf
+
+## Vulkan ICDs
+
+intel_hasvk_icd.i686.json
+intel_hasvk_icd.x86_64.json
+intel_icd.i686.json
+intel_icd.x86_64.json
+lvp_icd.i686.json
+lvp_icd.x86_64.json
+nouveau_icd.i686.json
+nouveau_icd.x86_64.json
+nvidia_icd.i686.json
+nvidia_icd.x86_64.json
+radeon_icd.i686.json
+radeon_icd.x86_64.json
+
+## Session type
+
+wayland
+KDE
+

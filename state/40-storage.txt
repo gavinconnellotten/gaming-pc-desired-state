@@ -1,0 +1,70 @@
+## Block devices
+
+NAME          SIZE TYPE FSTYPE   MOUNTPOINTS
+loop0          85M loop squashfs /var/lib/snapd/snap/claudeai-desktop/1
+loop1        50.1M loop squashfs /var/lib/snapd/snap/snapd/27591
+loop2          74M loop squashfs /var/lib/snapd/snap/core22/2411
+sda         931.5G disk          
+└─sda1      931.5G part ntfs     /run/media/<user>/08167B30167B1DBE
+sdb           1.8T disk          
+├─sdb1         16M part          
+└─sdb2        1.8T part ntfs     /run/media/<user>/D0E62ADEE62AC496
+zram0           8G disk swap     [SWAP]
+nvme0n1     931.5G disk          
+├─nvme0n1p1   600M part vfat     /boot/efi
+├─nvme0n1p2     2G part ext4     /boot
+├─nvme0n1p3 911.8G part btrfs    /home
+│                                /
+└─nvme0n1p4  17.1G part swap     [SWAP]
+
+## Filesystem usage
+
+Filesystem                           Type      Size  Used Avail Use% Mounted on
+/dev/nvme0n1p3                       btrfs     912G   36G  876G   4% /
+efivarfs                             efivarfs  128K   55K   69K  44% /sys/firmware/efi/efivars
+/dev/nvme0n1p3                       btrfs     912G   36G  876G   4% /home
+/dev/nvme0n1p2                       ext4      2.0G  599M  1.2G  33% /boot
+/dev/loop1                           squashfs   51M   51M     0 100% /var/lib/snapd/snap/snapd/27591
+/dev/loop2                           squashfs   74M   74M     0 100% /var/lib/snapd/snap/core22/2411
+/dev/loop0                           squashfs   86M   86M     0 100% /var/lib/snapd/snap/claudeai-desktop/1
+/dev/nvme0n1p1                       vfat      599M   21M  579M   4% /boot/efi
+/dev/sda1                            fuseblk   932G  621G  311G  67% /run/media/<user>/08167B30167B1DBE
+/dev/sdb2                            fuseblk   1.9T  1.7T  162G  92% /run/media/<user>/D0E62ADEE62AC496
+//homeassistant.local/SSD/MOVIES     cifs      239G  106G  133G  45% /mnt/plex-movies
+//homeassistant.local/ELEMENTS/Music cifs      466G  155G  312G  34% /mnt/plex-music
+//homeassistant.local/MEDIA/TV SHOWS cifs      235G  134G  101G  58% /mnt/plex-tv
+
+## fstab
+
+# /etc/fstab: static file system information.
+#
+# Use 'blkid' to print the universally unique identifier for a device; this may
+# be used with UUID= as a more robust way to name devices that works even if
+# disks are added and removed. See fstab(5).
+#
+# <file system>             <mount point>  <type>  <options>  <dump>  <pass>
+UUID=05BD-22D3                            /boot/efi      vfat    defaults,umask=0077 0 2
+UUID=<uuid> /boot          ext4    defaults   0 2
+UUID=<uuid> /              btrfs   subvol=/@,compress=zstd:1,x-systemd.device-timeout=0 0 0
+UUID=<uuid> /home          btrfs   subvol=/@home,compress=zstd:1,x-systemd.device-timeout=0 0 0
+UUID=<uuid> swap           swap    defaults   0 0
+tmpfs                                     /tmp           tmpfs   defaults,noatime,mode=1777 0 0
+# //homeassistant.local/SSD/MOVIES/  /mnt/plex-movies  cifs  credentials=/etc/samba/credentials,vers=3.0,uid=1000,gid=1000  0  0  _netdev
+# //homeassistant.local/ELEMENTS/Music/  /mnt/plex-music  cifs  credentials=/etc/samba/credentials,vers=3.0,uid=1000,gid=1000  0  0  _netdev
+# BEGIN ANSIBLE MANAGED: smb_mounts
+//homeassistant.local/SSD/MOVIES /mnt/plex-movies cifs credentials=/etc/samba/credentials,uid=1000,gid=1000,file_mode=0664,dir_mode=0775,vers=3.0,_netdev,nofail,x-systemd.automount,x-systemd.mount-timeout=30,x-systemd.idle-timeout=60 0 0
+//homeassistant.local/ELEMENTS/Music /mnt/plex-music cifs credentials=/etc/samba/credentials,uid=1000,gid=1000,file_mode=0664,dir_mode=0775,vers=3.0,_netdev,nofail,x-systemd.automount,x-systemd.mount-timeout=30,x-systemd.idle-timeout=60 0 0
+//homeassistant.local/MEDIA/TV\040SHOWS /mnt/plex-tv cifs credentials=/etc/samba/credentials,uid=1000,gid=1000,file_mode=0664,dir_mode=0775,vers=3.0,_netdev,nofail,x-systemd.automount,x-systemd.mount-timeout=30,x-systemd.idle-timeout=60 0 0
+# END ANSIBLE MANAGED: smb_mounts
+
+## Btrfs subvolumes
+
+(command failed: btrfs subvolume list /)
+ERROR: can't perform the search: Operation not permitted
+
+## Swap
+
+NAME           TYPE       SIZE USED PRIO
+/dev/zram0     partition    8G   0B  100
+/dev/nvme0n1p4 partition 17.1G   0B   -1
+

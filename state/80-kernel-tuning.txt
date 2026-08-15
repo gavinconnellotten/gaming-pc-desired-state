@@ -1,0 +1,62 @@
+## sysctl drop-ins
+
+/etc/sysctl.d/99-sysctl.conf
+/usr/lib/sysctl.d/10-default-yama-scope.conf
+/usr/lib/sysctl.d/10-map-count.conf
+/usr/lib/sysctl.d/20-disable-split-lock-detect.conf
+/usr/lib/sysctl.d/20-starcitizen-max_map_count.conf
+/usr/lib/sysctl.d/20-uplay-mtu-probing.conf
+/usr/lib/sysctl.d/50-coredump.conf
+/usr/lib/sysctl.d/50-default.conf
+/usr/lib/sysctl.d/50-libkcapi-optmem_max.conf
+/usr/lib/sysctl.d/50-libreswan.conf
+/usr/lib/sysctl.d/50-pid-max.conf
+/usr/lib/sysctl.d/53-brave.conf
+
+## sysctl values of interest
+
+vm.max_map_count = 16777216
+vm.swappiness = 100
+kernel.split_lock_mitigate = 0
+fs.file-max = 9223372036854775807
+
+## modprobe.d files
+
+firewalld-sysctls.conf
+kvm.conf
+nvidia-modeset.conf
+vhost.conf
+
+## Custom udev rules
+
+40-hpet-permissions.rules
+50-horipad-steam-controller.rules
+50-razer-wolverine-v2-pro.rules
+60-ioschedulers.rules
+60-xbox-pads.rules
+70-asus.rules
+70-drunkdeer.rules
+70-kfd.rules
+70-snap.snapd.rules
+70-wooting.rules
+71-sony-controllers.rules
+75-powercap.rules
+99-ntsync.rules
+99-steelseries.rules
+99-thunderbolt.rules
+
+## Security limits drop-ins
+
+10-gamemode.conf
+25-pw-rlimits.conf
+95-jack.conf
+
+## CPU governor
+
+performance
+
+## Platform profile
+
+(command failed: sh -c cat /sys/firmware/acpi/platform_profile 2>/dev/null)
+
+

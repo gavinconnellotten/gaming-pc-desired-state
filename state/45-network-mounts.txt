@@ -1,0 +1,100 @@
+## Network mount entries in fstab
+
+14:# //homeassistant.local/SSD/MOVIES/  /mnt/plex-movies  cifs  credentials=/etc/samba/credentials,vers=3.0,uid=1000,gid=1000  0  0  _netdev
+15:# //homeassistant.local/ELEMENTS/Music/  /mnt/plex-music  cifs  credentials=/etc/samba/credentials,vers=3.0,uid=1000,gid=1000  0  0  _netdev
+16:# BEGIN ANSIBLE MANAGED: smb_mounts
+17://homeassistant.local/SSD/MOVIES /mnt/plex-movies cifs credentials=/etc/samba/credentials,uid=1000,gid=1000,file_mode=0664,dir_mode=0775,vers=3.0,_netdev,nofail,x-systemd.automount,x-systemd.mount-timeout=30,x-systemd.idle-timeout=60 0 0
+18://homeassistant.local/ELEMENTS/Music /mnt/plex-music cifs credentials=/etc/samba/credentials,uid=1000,gid=1000,file_mode=0664,dir_mode=0775,vers=3.0,_netdev,nofail,x-systemd.automount,x-systemd.mount-timeout=30,x-systemd.idle-timeout=60 0 0
+19://homeassistant.local/MEDIA/TV\040SHOWS /mnt/plex-tv cifs credentials=/etc/samba/credentials,uid=1000,gid=1000,file_mode=0664,dir_mode=0775,vers=3.0,_netdev,nofail,x-systemd.automount,x-systemd.mount-timeout=30,x-systemd.idle-timeout=60 0 0
+20:# END ANSIBLE MANAGED: smb_mounts
+
+## Currently mounted network filesystems
+
+SOURCE                               TARGET           FSTYPE OPTIONS
+//homeassistant.local/SSD/MOVIES     /mnt/plex-movies cifs   rw,relatime,vers=3.0,cache=strict,upcall_target=app,username=<user>,uid=1000,forceuid,gid=1000,forcegid,addr=192.168.68.117,file_mode=0755,dir_mode=0755,soft,nounix,serverino,mapposix,reparse=nfs,nativesocket,symlink=native,rsize=4194304,wsize=4194304,bsize=1048576,echo_interval=60,actimeo=1,closetimeo=1
+//homeassistant.local/ELEMENTS/Music /mnt/plex-music  cifs   rw,relatime,vers=3.0,cache=strict,upcall_target=app,username=<user>,uid=1000,forceuid,gid=1000,forcegid,addr=192.168.68.117,file_mode=0755,dir_mode=0755,soft,nounix,serverino,mapposix,reparse=nfs,nativesocket,symlink=native,rsize=4194304,wsize=4194304,bsize=1048576,echo_interval=60,actimeo=1,closetimeo=1
+//homeassistant.local/MEDIA/TV SHOWS /mnt/plex-tv     cifs   rw,relatime,vers=3.0,cache=strict,upcall_target=app,username=<user>,uid=1000,forceuid,gid=1000,forcegid,addr=192.168.68.117,file_mode=0664,dir_mode=0775,soft,nounix,serverino,mapposix,reparse=nfs,nativesocket,symlink=native,rsize=4194304,wsize=4194304,bsize=1048576,echo_interval=60,actimeo=1,closetimeo=1
+
+## systemd mount/automount units
+
+● boot.automount                                 not-found inactive dead    boot.automount
+  home.mount                                     loaded    active   mounted /home
+  mnt-plex\x2dmovies.automount                   loaded    inactive dead    mnt-plex\x2dmovies.automount
+  mnt-plex\x2dmovies.mount                       loaded    active   mounted /mnt/plex-movies
+  mnt-plex\x2dmusic.automount                    loaded    inactive dead    mnt-plex\x2dmusic.automount
+  mnt-plex\x2dmusic.mount                        loaded    active   mounted /mnt/plex-music
+  mnt-plex\x2dtv.automount                       loaded    active   running mnt-plex\x2dtv.automount
+  mnt-plex\x2dtv.mount                           loaded    active   mounted /mnt/plex-tv
+● run-media-<user>-08167B30167B1DBE.mount.mount   not-found inactive dead    run-media-<user>-08167B30167B1DBE.mount.mount
+● run-media-<user>-D0E62ADEE62AC496.mount.mount   not-found inactive dead    run-media-<user>-D0E62ADEE62AC496.mount.mount
+● sysroot.mount                                  not-found inactive dead    sysroot.mount
+● usr.mount                                      not-found inactive dead    usr.mount
+● usr-share.mount                                not-found inactive dead    usr-share.mount
+● var-cache.mount                                not-found inactive dead    var-cache.mount
+  var-lib-snapd-snap-claudeai\x2ddesktop-1.mount loaded    active   mounted Mount unit for claudeai-desktop, revision 1
+  var-lib-snapd-snap-core22-2411.mount           loaded    active   mounted Mount unit for core22, revision 2411
+  var-lib-snapd-snap-snapd-27591.mount           loaded    active   mounted Mount unit for snapd, revision 27591
+● var.mount                                      not-found inactive dead    var.mount
+
+## Failed mount units
+
+(no output)
+
+## Credential files (permissions only, contents never read)
+
+-rw------- 1 root root 37 Aug 15 10:26 /etc/samba/credentials
+
+Contents are never read here. The smb_mounts role checks them
+for trailing whitespace and CRLF line endings when it runs — the
+failure mode that broke these mounts on 2026-08-15.
+
+## CIFS/SMB client packages
+
+cifs-utils-7.6
+cifs-utils-info-7.6
+keyutils-1.6.3
+keyutils-libs-1.6.3
+keyutils-libs-1.6.3
+samba-4.24.2
+samba-client-4.24.2
+samba-client-libs-4.24.2
+samba-client-libs-4.24.2
+samba-common-4.24.2
+samba-common-tools-4.24.2
+samba-core-libs-4.24.2
+samba-core-libs-4.24.2
+samba-dcerpc-4.24.2
+samba-ldb-ldap-modules-4.24.2
+samba-libs-4.24.2
+samba-ndr-libs-4.24.2
+samba-ndr-libs-4.24.2
+samba-usershares-4.24.2
+samba-winbind-4.24.2
+samba-winbind-clients-4.24.2
+samba-winbind-modules-4.24.2
+
+## Mount errors this boot
+
+Aug 14 11:56:07 <host> kernel: CIFS: VFS: \\homeassistant.local failed to create a new SMB session with Unknown: -13
+Aug 14 11:56:07 <host> kernel: CIFS: VFS: cifs_mount failed w/return code = -13
+Aug 14 11:56:07 <host> systemd[1]: mnt-plex\x2dmusic.mount: Failed with result 'exit-code'.
+Aug 14 11:56:07 <host> systemd[1]: Failed to mount mnt-plex\x2dmusic.mount - /mnt/plex-music.
+Aug 14 11:56:07 <host> kernel: CIFS: VFS: \\homeassistant.local failed to create a new SMB session with Unknown: -13
+Aug 14 11:56:07 <host> kernel: CIFS: VFS: cifs_mount failed w/return code = -13
+Aug 14 11:56:07 <host> systemd[1]: mnt-plex\x2dmovies.mount: Failed with result 'exit-code'.
+Aug 14 11:56:07 <host> systemd[1]: Failed to mount mnt-plex\x2dmovies.mount - /mnt/plex-movies.
+                                                   Module libmount.so.1 from rpm util-linux-2.41.5-1.fc44.x86_64
+                                                   #1  0x00007fadd53214ee mnt_table_parse_stream (libmount.so.1 + 0x1a4ee)
+                                                   #2  0x00007fadd532302d mnt_table_parse_file (libmount.so.1 + 0x1c02d)
+                                                   #3  0x00007fadd53250fb mnt_table_parse_fstab (libmount.so.1 + 0x1e0fb)
+                                                   Module libmount.so.1 from rpm util-linux-2.41.5-1.fc44.x86_64
+                                                   #1  0x00007fb6c66694ee mnt_table_parse_stream (libmount.so.1 + 0x1a4ee)
+                                                   #2  0x00007fb6c666b02d mnt_table_parse_file (libmount.so.1 + 0x1c02d)
+                                                   #3  0x00007fb6c666d0fb mnt_table_parse_fstab (libmount.so.1 + 0x1e0fb)
+
+## Mountpoint contents (entry counts, not names)
+
+/mnt/plex-movies: 69 entries
+/mnt/plex-music: 116 entries
+/mnt/plex-tv: 4 entries
+
