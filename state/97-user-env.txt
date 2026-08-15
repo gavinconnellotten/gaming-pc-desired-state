@@ -12,10 +12,11 @@
 .bash_logout
 .bash_profile
 .bashrc
+.gitconfig
 
 ## Git configuration (global, keys only)
 
-(no output)
+user.email
 
 ## Flatpak overrides (user)
 
@@ -23,7 +24,7 @@
 
 ## KVM device access
 
-crw-rw-rw- 1 root kvm 10, 232 Aug 14 15:47 /dev/kvm
+crw-rw-rw- root:kvm /dev/kvm
 
 ## Claude Desktop diagnostics (as this user)
 
@@ -41,7 +42,7 @@ Claude Desktop Diagnostics
        Tip: CLAUDE_USE_WAYLAND=1 enables native Wayland IME (loses global hotkeys).
 [PASS] Electron: v42.7.0 (/usr/lib/claude-desktop-unofficial/claude-desktop)
 [PASS] Chrome sandbox: permissions OK (/usr/lib/claude-desktop-unofficial/chrome-sandbox)
-[PASS] SingletonLock: held by running process (PID 10884)
+[PASS] SingletonLock: held by running process (PID <pid>)
        Password store: upstream os_crypt autodetect (default)
 [PASS] Keyring: org.freedesktop.secrets reachable for credential encryption
        Tray icon: upstream selection (no override)
@@ -50,7 +51,7 @@ Claude Desktop Diagnostics
 [PASS] Node.js: v22.22.2
        Path: /usr/bin/node
 [PASS] Desktop entry: /usr/share/applications/claude-desktop-unofficial.desktop
-[PASS] Disk space: 896703MB free
+[PASS] Disk space: <n>MB free
 
 Cowork Mode
 ----------------
@@ -60,7 +61,7 @@ Cowork Mode
 [PASS] Firmware: /usr/share/OVMF/OVMF_CODE.fd
 [PASS] virtiofsd: /usr/libexec/virtiofsd (client-probed path)
        Cowork isolation: KVM (official)
-[PASS] Log file: 1KB (/home/<user>/.cache/claude-desktop-debian/launcher.log)
+[PASS] Log file: <n>KB (/home/<user>/.cache/claude-desktop-debian/launcher.log)
 
 All checks passed.
 

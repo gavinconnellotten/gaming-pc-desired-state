@@ -87,13 +87,13 @@ var-lib-snapd-snap-snapd-27591.mount           enabled disabled
 
 ## System timers
 
-Mon 2026-08-17 01:37:16 NZST 1 day 14h Mon 2026-08-10 02:56:22 NZST           - fstrim.timer                 fstrim.service
-Sat 2026-08-15 11:56:03 NZST     56min Sat 2026-08-15 08:51:32 NZST 2h 7min ago dnf-makecache.timer          dnf-makecache.service
-Sat 2026-08-15 12:11:32 NZST  1h 12min Fri 2026-08-14 12:11:32 NZST     22h ago systemd-tmpfiles-clean.timer systemd-tmpfiles-clean.service
-Sun 2026-08-16 00:00:00 NZST       13h Sat 2026-08-15 00:01:00 NZST     10h ago unbound-anchor.timer         unbound-anchor.service
-Sun 2026-08-16 00:34:36 NZST       13h Sat 2026-08-15 00:56:00 NZST     10h ago plocate-updatedb.timer       plocate-updatedb.service
-Sun 2026-08-16 00:59:12 NZST       13h Sat 2026-08-15 00:35:39 NZST     10h ago logrotate.timer              logrotate.service
-Sun 2026-08-16 01:00:00 NZST       14h Mon 2026-08-10 02:56:22 NZST           - raid-check.timer             raid-check.service
+dnf-makecache.timer -> dnf-makecache.service
+fstrim.timer -> fstrim.service
+logrotate.timer -> logrotate.service
+plocate-updatedb.timer -> plocate-updatedb.service
+raid-check.timer -> raid-check.service
+systemd-tmpfiles-clean.timer -> systemd-tmpfiles-clean.service
+unbound-anchor.timer -> unbound-anchor.service
 
 ## Enabled user units
 

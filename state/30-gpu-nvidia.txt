@@ -9,13 +9,13 @@ NVIDIA GeForce RTX 4060 Ti, 595.91.07, 95.06.26.00.1E, 8188 MiB, 8.9
 
 ## NVIDIA kernel modules
 
-aead                   16384  5 cifs,ccm,nvidia,mac80211,aesni_intel
-drm_ttm_helper         20480  2 nvidia_drm
-nvidia              16605184  477 nvidia_uvm,nvidia_modeset
-nvidia_drm            159744  70
-nvidia_modeset       2191360  17 nvidia_drm
-nvidia_uvm           2613248  0
-video                  81920  1 nvidia_modeset
+aead 16384 cifs,ccm,nvidia,mac80211,aesni_intel
+drm_ttm_helper 20480 nvidia_drm
+nvidia 16605184 nvidia_uvm,nvidia_modeset
+nvidia_drm 159744 
+nvidia_modeset 2191360 nvidia_drm
+nvidia_uvm 2613248 
+video 81920 nvidia_modeset
 
 ## NVIDIA packages
 
