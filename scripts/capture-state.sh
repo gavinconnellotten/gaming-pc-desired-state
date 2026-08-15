@@ -274,14 +274,18 @@ printf 'Capturing state to %s/ (redaction: %s)\n' "$OUT_DIR" \
              found=1
          done
          [ "$found" -eq 1 ] || echo "(nothing under /mnt or /media)"'
+    # tr -s ' ' throughout this file and 70-services: systemctl and findmnt pad
+    # columns to the widest row, so adding or removing ONE unit re-spaces every
+    # other line and a one-line change diffs as a hundred. Squeezing runs of
+    # spaces costs some column alignment and buys diffs that mean something.
     capture "Automount unit health (the signal that matters — see header)" sh -c \
-        "systemctl list-units --type=automount --all --no-pager --no-legend 2>/dev/null | grep -vE '^\s*(dev-|proc-|sys-|run-|boot)' | sort || echo '(no automount units)'"
+        "systemctl list-units --type=automount --all --no-pager --no-legend 2>/dev/null | grep -vE '^\s*(dev-|proc-|sys-|run-|boot)' | tr -s ' ' | sort || echo '(no automount units)'"
     capture "Currently mounted network filesystems" sh -c \
-        "findmnt -t cifs,smb3,nfs,nfs4 --output SOURCE,TARGET,FSTYPE,OPTIONS 2>/dev/null || echo '(none mounted — normal if idle; check automount health above)'"
+        "findmnt -t cifs,smb3,nfs,nfs4 --output SOURCE,TARGET,FSTYPE,OPTIONS 2>/dev/null | tr -s ' ' || echo '(none mounted — normal if idle; check automount health above)'"
     capture "systemd mount/automount units" sh -c \
-        "systemctl list-units --type=mount,automount --all --no-pager --no-legend 2>/dev/null | grep -vE '^\s*(-\.mount|dev-|proc-|sys-|run-|tmp.mount|boot)' | sort"
+        "systemctl list-units --type=mount,automount --all --no-pager --no-legend 2>/dev/null | grep -vE '^\s*(-\.mount|dev-|proc-|sys-|run-|tmp.mount|boot)' | tr -s ' ' | sort"
     capture "Failed mount units" sh -c \
-        "systemctl --failed --type=mount,automount --no-pager --no-legend 2>/dev/null || true"
+        "systemctl --failed --type=mount,automount --no-pager --no-legend 2>/dev/null | tr -s ' ' || true"
     # May be a single file or a directory of per-share files — both layouts are
     # valid, so don't assume either. Contents are never read: they hold
     # passwords, and this script runs without sudo so it couldn't anyway.
@@ -376,23 +380,28 @@ printf 'Capturing state to %s/ (redaction: %s)\n' "$OUT_DIR" \
     # Snaps were a blind spot until 2026-08-15. Capturing them immediately
     # surfaced a third-party claudeai-desktop snap that nobody remembered
     # installing — the Publisher column is the point of this section.
+    # tr -s ' ' for the same reason as the systemctl captures: snap list pads
+    # to the widest name, so removing one snap re-spaces all the others.
     capture "Snap applications (note the publisher)" sh -c \
-        "snap list 2>/dev/null || echo '(snapd not installed, or no snaps)'"
+        "snap list 2>/dev/null | tr -s ' ' || echo '(snapd not installed, or no snaps)'"
 } | write 60-flatpaks-snaps.txt
 
 # --------------------------------------------------------------------------
 # Services and timers
 # --------------------------------------------------------------------------
 {
+    # tr -s ' ': see the note in the network mounts section — column padding
+    # turns any single unit added or removed into a whole-file diff.
     capture "Enabled system units" sh -c \
-        "systemctl list-unit-files --state=enabled --no-pager --no-legend | sort"
-    capture "Failed system units" systemctl --failed --no-pager --no-legend
+        "systemctl list-unit-files --state=enabled --no-pager --no-legend | tr -s ' ' | sort"
+    capture "Failed system units" sh -c \
+        "systemctl --failed --no-pager --no-legend | tr -s ' '"
     # Unit and target only: NEXT/LEFT/LAST/PASSED are all wall-clock and
     # differ on every run.
     capture "System timers" sh -c \
         "systemctl list-timers --all --no-pager --no-legend | awk 'NF >= 2 {print \$(NF-1), \"->\", \$NF}' | sort"
     capture "Enabled user units" sh -c \
-        "systemctl --user list-unit-files --state=enabled --no-pager --no-legend | sort"
+        "systemctl --user list-unit-files --state=enabled --no-pager --no-legend | tr -s ' ' | sort"
     capture "Default target" systemctl get-default
 } | write 70-services.txt
 
