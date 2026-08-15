@@ -5,9 +5,15 @@
 # Writes a set of plain-text files describing the machine's current state, to
 # be committed as the baseline this repo's desired state is designed against.
 #
-# This script NEVER modifies the system. It only reads. No sudo required; a few
-# sections are simply reported as unavailable if they need privileges we don't
-# have.
+# This script changes no configuration. No sudo required; a few sections are
+# simply reported as unavailable if they need privileges we don't have.
+#
+# One deliberate exception to "only reads": it lists the contents of /mnt/* and
+# /media/*, and touching a mountpoint is what triggers an x-systemd.automount
+# to attach. That's transient and self-reversing — the shares unmount again on
+# their idle timeout — and it's what makes the network-mount picture consistent
+# instead of half-idle. It happens before anything observes mount state, on
+# purpose. See the network mounts section.
 #
 # Output is deliberately boring and stable — sorted lists, no timestamps in the
 # body of any file — so that re-running it and diffing shows real drift rather
@@ -139,8 +145,12 @@ printf 'Capturing state to %s/ (redaction: %s)\n' "$OUT_DIR" \
 # Hardware
 # --------------------------------------------------------------------------
 {
-    capture "CPU" lscpu
-    capture "Memory" free -h
+    # Live scaling frequency and a jittery BogoMIPS reading change every run
+    # and say nothing about desired state.
+    capture "CPU" sh -c \
+        "lscpu | grep -vE '^(CPU\(s\) scaling MHz|BogoMIPS):'"
+    # Total only. Used/free/buffers churn constantly.
+    capture "Memory" sh -c "free -h | awk '/^Mem:/ {print \"total: \" \$2}'"
     capture "Memory devices" lsmem --summary
     capture "PCI devices" lspci -nn
     capture "USB devices" lsusb
@@ -154,7 +164,10 @@ printf 'Capturing state to %s/ (redaction: %s)\n' "$OUT_DIR" \
     capture "nvidia-smi" nvidia-smi \
         --query-gpu=name,driver_version,vbios_version,memory.total,compute_cap \
         --format=csv
-    capture "NVIDIA kernel modules" sh -c "lsmod | grep -i nvidia | sort"
+    # Field 3 is the live reference count and moves with whatever is using the
+    # GPU. Keep name, size and dependants.
+    capture "NVIDIA kernel modules" sh -c \
+        "lsmod | grep -i nvidia | awk '{print \$1, \$2, \$4}' | sort"
     capture "NVIDIA packages" sh -c "rpm -qa | grep -Ei 'nvidia|akmod|kmod' | sort"
     capture "modprobe.d (NVIDIA-related)" sh -c \
         "grep -rIl nvidia /etc/modprobe.d 2>/dev/null | sort"
@@ -166,8 +179,14 @@ printf 'Capturing state to %s/ (redaction: %s)\n' "$OUT_DIR" \
 # Storage
 # --------------------------------------------------------------------------
 {
-    capture "Block devices" lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINTS
-    capture "Filesystem usage" df -hT -x tmpfs -x devtmpfs
+    # -e 7 drops loop devices: snapd's loop numbering shuffles between runs, so
+    # the same squashfs appears as loop1 then loop2 and diffs as a change.
+    capture "Block devices" lsblk -e 7 -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINTS
+    # Size and mountpoint, not usage — used/available move constantly. CIFS is
+    # excluded because those mounts come and go by design; see
+    # 45-network-mounts.txt.
+    capture "Filesystems" sh -c \
+        "df -h --output=source,fstype,size,target -x tmpfs -x devtmpfs -x cifs -x squashfs"
     show "fstab" /etc/fstab
     capture "Btrfs subvolumes" btrfs subvolume list /
     capture "Swap" swapon --show
@@ -176,9 +195,22 @@ printf 'Capturing state to %s/ (redaction: %s)\n' "$OUT_DIR" \
 # --------------------------------------------------------------------------
 # Network mounts (SMB/CIFS/NFS)
 #
-# Captures enough to explain the classic "share is listed but the folder is
-# empty" symptom, which is almost always a mount that silently failed at boot,
-# leaving the bare mountpoint directory visible underneath.
+# READ THIS BEFORE CONCLUDING THE SHARES ARE BROKEN.
+#
+# The CIFS mounts use x-systemd.automount with x-systemd.idle-timeout=60: they
+# unmount after a minute of inactivity and remount when something touches the
+# mountpoint. So "nothing mounted" is the healthy idle state, not a failure —
+# and it looks identical to the failure this repo spent 2026-08-15 diagnosing.
+#
+# The signal that actually matters is the automount unit, not the mount:
+#
+#   automount active/waiting  — healthy, idle, will mount on first access
+#   automount active/running  — healthy, mounted right now
+#   automount inactive/dead   — NOT armed. This one is a real problem.
+#
+# The mountpoint listing below runs FIRST, deliberately: touching the
+# directories arms the automounts, so the mount state observed afterwards is
+# consistent rather than a mix of idle and active. Don't reorder these.
 #
 # Credential FILES are listed with their permissions; their CONTENTS are never
 # read — they hold share passwords.
@@ -186,8 +218,20 @@ printf 'Capturing state to %s/ (redaction: %s)\n' "$OUT_DIR" \
 {
     capture "Network mount entries in fstab" sh -c \
         "grep -nE 'cifs|smb|nfs|_netdev' /etc/fstab 2>/dev/null || echo '(no network mount lines found)'"
+    # Runs before the mount observations below — see the header. An empty
+    # mountpoint is the tell-tale of a mount that failed: the share is "there"
+    # in the file manager but has nothing in it.
+    capture "Mountpoint contents (entry counts, not names)" bash -c \
+        'shopt -s nullglob; found=0
+         for d in /mnt/*/ /media/*/; do
+             printf "%s: %s entries\n" "${d%/}" "$(ls -1A "$d" 2>/dev/null | wc -l)"
+             found=1
+         done
+         [ "$found" -eq 1 ] || echo "(nothing under /mnt or /media)"'
+    capture "Automount unit health (the signal that matters — see header)" sh -c \
+        "systemctl list-units --type=automount --all --no-pager --no-legend 2>/dev/null | grep -vE '^\s*(dev-|proc-|sys-|run-|boot)' | sort || echo '(no automount units)'"
     capture "Currently mounted network filesystems" sh -c \
-        "findmnt -t cifs,smb3,nfs,nfs4 --output SOURCE,TARGET,FSTYPE,OPTIONS 2>/dev/null || echo '(none mounted)'"
+        "findmnt -t cifs,smb3,nfs,nfs4 --output SOURCE,TARGET,FSTYPE,OPTIONS 2>/dev/null || echo '(none mounted — normal if idle; check automount health above)'"
     capture "systemd mount/automount units" sh -c \
         "systemctl list-units --type=mount,automount --all --no-pager --no-legend 2>/dev/null | grep -vE '^\s*(-\.mount|dev-|proc-|sys-|run-|tmp.mount|boot)' | sort"
     capture "Failed mount units" sh -c \
@@ -211,15 +255,6 @@ printf 'Capturing state to %s/ (redaction: %s)\n' "$OUT_DIR" \
         "rpm -qa --qf '%{NAME}-%{VERSION}\n' | grep -Ei 'cifs-utils|samba|keyutils' | sort"
     capture "Mount errors this boot" sh -c \
         "journalctl -b --no-pager -p warning 2>/dev/null | grep -iE 'cifs|smb|mount' | tail -40 || echo '(journal not readable without privileges)'"
-    # An empty mountpoint directory is the tell-tale of a mount that failed:
-    # the share is "there" in the file manager but has nothing in it.
-    capture "Mountpoint contents (entry counts, not names)" bash -c \
-        'shopt -s nullglob; found=0
-         for d in /mnt/*/ /media/*/; do
-             printf "%s: %s entries\n" "${d%/}" "$(ls -1A "$d" 2>/dev/null | wc -l)"
-             found=1
-         done
-         [ "$found" -eq 1 ] || echo "(nothing under /mnt or /media)"'
 } | write 45-network-mounts.txt
 
 # --------------------------------------------------------------------------
@@ -275,8 +310,10 @@ printf 'Capturing state to %s/ (redaction: %s)\n' "$OUT_DIR" \
     capture "Enabled system units" sh -c \
         "systemctl list-unit-files --state=enabled --no-pager --no-legend | sort"
     capture "Failed system units" systemctl --failed --no-pager --no-legend
+    # Unit and target only: NEXT/LEFT/LAST/PASSED are all wall-clock and
+    # differ on every run.
     capture "System timers" sh -c \
-        "systemctl list-timers --all --no-pager --no-legend | sort"
+        "systemctl list-timers --all --no-pager --no-legend | awk 'NF >= 2 {print \$(NF-1), \"->\", \$NF}' | sort"
     capture "Enabled user units" sh -c \
         "systemctl --user list-unit-files --state=enabled --no-pager --no-legend | sort"
     capture "Default target" systemctl get-default
@@ -362,9 +399,16 @@ printf 'Capturing state to %s/ (redaction: %s)\n' "$OUT_DIR" \
         "git config --global --list --name-only 2>/dev/null | sort"
     capture "Flatpak overrides (user)" sh -c \
         "ls -1 \"\$HOME/.local/share/flatpak/overrides\" 2>/dev/null | sort"
-    capture "KVM device access" sh -c "ls -l /dev/kvm 2>&1"
-    capture "Claude Desktop diagnostics (as this user)" \
-        claude-desktop-unofficial --doctor
+    # stat, not ls -l: the device node's timestamp changes on every boot.
+    capture "KVM device access" sh -c \
+        "stat -c '%A %U:%G %n' /dev/kvm 2>&1 || echo '(no /dev/kvm)'"
+    # PID, free disk space and log size all move on their own. What matters
+    # here is which checks PASS, not the numbers beside them.
+    capture "Claude Desktop diagnostics (as this user)" sh -c \
+        "claude-desktop-unofficial --doctor 2>&1 |
+         sed -E 's/PID [0-9]+/PID <pid>/g;
+                 s/Disk space: [0-9]+MB free/Disk space: <n>MB free/;
+                 s/Log file: [0-9]+(\.[0-9]+)?([KMG]B)/Log file: <n>\2/'"
 } | write 97-user-env.txt
 
 # --------------------------------------------------------------------------

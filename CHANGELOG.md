@@ -81,6 +81,30 @@ into this repo yet.
     options field now actually does something.
   - **SMB shares are now managed.** A rebuilt machine needs the credential file
     recreated (`./scripts/setup-smb-credentials.sh`) and then one playbook run.
+- **Verified across a reboot**, which is the claim that actually matters. All
+  three automount units came up `active`, no failed units, and no
+  `STATUS_LOGON_FAILURE` anywhere in the boot journal. Boot completed at
+  12:23:15 and the shares mounted at 12:24:16 — a minute later, on first
+  access, which is the whole point: boot no longer waits on the NAS. Movies and
+  music also picked up the role's `file_mode=0664,dir_mode=0775`, confirming
+  they migrated off their old hand-written entries.
+- **`scripts/capture-state.sh` made honest and quiet.** Two problems, both
+  found by diffing a fresh capture against the committed one:
+  - **The mounts section was actively misleading.** With a 60-second idle
+    timeout the shares are usually *not* mounted, so the capture recorded
+    "(no output)" under currently-mounted — indistinguishable from the failure
+    this repo exists to document. It now leads with automount unit health,
+    explains what each state means, and lists mountpoint contents *first* so
+    that touching the directories arms the automounts and the sections agree.
+    The script's "never modifies the system" claim was already untrue for the
+    same reason; that's now stated rather than glossed.
+  - **Diffs were ~95% noise.** CPU scaling MHz, BogoMIPS, free memory, NVIDIA
+    module refcounts, snapd loop-device ordering, disk usage, timer schedules,
+    `/dev/kvm`'s mtime and Claude's PID all churned every run, burying real
+    change. Those are now stripped or normalised. Two consecutive runs are
+    byte-identical apart from the summary timestamp, so `git diff state/` is
+    worth reading again.
+- **Baseline recaptured** post-reboot, replacing the pre-reboot one.
 
 ## 2026-08-14
 

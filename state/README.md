@@ -14,9 +14,32 @@ what's drifted since.
 git diff state/
 ```
 
-The script only reads — it never changes the machine, and needs no `sudo`.
-Everything except `00-summary.md` is written without timestamps, so a re-run
-produces a clean diff showing real changes rather than noise.
+It needs no `sudo` and changes no configuration. Everything except
+`00-summary.md` is written without timestamps, and fields that move on their
+own — CPU scaling frequency, free memory, kernel module refcounts, disk usage,
+snapd's loop-device numbering, systemd timer schedules, PIDs — are stripped or
+normalised. Two consecutive runs are byte-identical apart from the summary's
+timestamp, so anything a diff shows is real drift.
+
+One deliberate exception to "only reads": the script lists `/mnt/*` and
+`/media/*`, and touching a mountpoint is what triggers an
+`x-systemd.automount` to attach. That's transient and self-reversing.
+
+## Reading `45-network-mounts.txt`
+
+**An empty "currently mounted" section does not mean the shares are broken.**
+They use `x-systemd.automount` with a 60-second idle timeout, so they unmount
+when nothing is using them — which looks identical to the failure this repo
+spent 2026-08-15 diagnosing. The automount unit is the signal:
+
+| State | Meaning |
+|---|---|
+| `active/waiting` | Healthy, idle, will mount on first access |
+| `active/running` | Healthy, mounted right now |
+| `inactive/dead` | Not armed — a real problem |
+
+The capture lists mountpoint contents *before* observing mount state, so the
+two sections agree rather than showing a half-idle picture.
 
 ## Before committing
 
