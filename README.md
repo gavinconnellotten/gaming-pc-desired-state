@@ -65,6 +65,8 @@ the logins in a password manager.
 | Claude Desktop | Managed via `roles/claude_desktop` |
 | SMB network shares | Managed via `roles/smb_mounts` |
 | State capture | `scripts/capture-state.sh` → `state/` |
+| SMB network shares | Managed via `roles/smb_mounts` |
+| State capture | `scripts/capture-state.sh` → `state/` |
 
 See `CHANGELOG.md` for the history of what's been done manually vs.
 codified into Ansible so far.

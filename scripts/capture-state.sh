@@ -192,8 +192,21 @@ printf 'Capturing state to %s/ (redaction: %s)\n' "$OUT_DIR" \
         "systemctl list-units --type=mount,automount --all --no-pager --no-legend 2>/dev/null | grep -vE '^\s*(-\.mount|dev-|proc-|sys-|run-|tmp.mount|boot)' | sort"
     capture "Failed mount units" sh -c \
         "systemctl --failed --type=mount,automount --no-pager --no-legend 2>/dev/null || true"
-    capture "Credential files (permissions only, contents never read)" sh -c \
-        "ls -l /etc/samba/credentials/ 2>/dev/null || echo '(no /etc/samba/credentials directory)'"
+    # May be a single file or a directory of per-share files — both layouts are
+    # valid, so don't assume either. Contents are never read: they hold
+    # passwords, and this script runs without sudo so it couldn't anyway.
+    capture "Credential files (permissions only, contents never read)" bash -c \
+        'shopt -s nullglob
+         found=0
+         for p in /etc/samba/credentials /etc/samba/credentials/*; do
+             [ -e "$p" ] || continue
+             ls -ld "$p"
+             found=1
+         done
+         [ "$found" -eq 1 ] || echo "(no /etc/samba/credentials)"
+         printf "\nContents are never read here. The smb_mounts role checks them\n"
+         printf "for trailing whitespace and CRLF line endings when it runs — the\n"
+         printf "failure mode that broke these mounts on 2026-08-15.\n"'
     capture "CIFS/SMB client packages" sh -c \
         "rpm -qa --qf '%{NAME}-%{VERSION}\n' | grep -Ei 'cifs-utils|samba|keyutils' | sort"
     capture "Mount errors this boot" sh -c \

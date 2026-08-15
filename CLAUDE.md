@@ -55,35 +55,40 @@ diagnostics gotcha below; this distinction is load-bearing.
 | Area | Status |
 |---|---|
 | Claude Desktop | Managed — `roles/claude_desktop` |
-| SMB network shares | Role written, **not yet applied** — `roles/smb_mounts` |
-| State capture | `scripts/capture-state.sh` → `state/` |
+| SMB network shares | **Managed and applied** — `roles/smb_mounts` |
+| State capture | `scripts/capture-state.sh` → `state/` (baseline captured 2026-08-15) |
 | NVIDIA driver | Installed out-of-band, deliberately unmanaged |
 | Dotfiles / KDE settings | Not managed yet (intended scope, not started) |
 | Gaming stack (Steam/Proton/etc) | Not managed yet |
 
-## The immediate task: SMB shares
+## SMB shares — done
 
-Two SMB shares on the home LAN should mount at fixed paths on boot. The owner's
-hand-written `/etc/fstab` entries produce shares that **appear in Dolphin but
-are empty** — the signature of a mount that failed, leaving the bare mountpoint
-directory visible underneath.
+Three shares, all on `homeassistant.local` (Home Assistant's "SambaNAS2"
+addon) under one login, managed by `roles/smb_mounts` and applied 2026-08-15:
 
-`roles/smb_mounts` is written and validated but **cannot be applied yet**:
+| Share | Mountpoint |
+|---|---|
+| `SSD/MOVIES` | `/mnt/plex-movies` |
+| `ELEMENTS/Music` | `/mnt/plex-music` |
+| `MEDIA/TV SHOWS` | `/mnt/plex-tv` |
 
-1. `host_vars/gaming-pc.yml` has `CHANGEME` placeholders — the real server
-   addresses, share names and mountpoints are unknown. They're in the existing
-   `/etc/fstab`.
-2. Credential files don't exist yet. Run `./scripts/setup-smb-credentials.sh`
-   (prompts for logins, writes `0600` files under `/etc/samba/credentials`).
-3. The old hand-written CIFS lines in `/etc/fstab` must be removed or
-   commented. The role refuses to run while they're there — two entries for one
-   mountpoint produce conflicting systemd units.
+They had been failing because the credentials file read `username=gavin  ` with
+two trailing spaces, which `mount.cifs` passed verbatim — so the server rejected
+a user that didn't exist. `CHANGELOG.md` has the full diagnosis;
+`roles/smb_mounts/README.md` has the causes in the order actually worth
+checking, and the two gotchas (systemd `\x2d` unit escaping, and why
+`findmnt --verify` can't be used directly as a `validate:`).
 
-**To finish this:** run `./scripts/capture-state.sh`, read
-`state/45-network-mounts.txt`, diagnose the actual failure, fill in the real
-values, then apply and verify the shares genuinely mount with content.
+Worth knowing when re-reading this:
 
-`roles/smb_mounts/README.md` lists the five usual causes in likelihood order.
+- **A rebuilt machine needs the credential file recreated** by
+  `./scripts/setup-smb-credentials.sh` before the playbook can do anything.
+  That's deliberate — no passwords in the repo.
+- **Share names with spaces are written literally in `host_vars`**; the role
+  escapes them to `\040`. The Jinja filter takes **one** backslash, not two —
+  two renders a path that's wrong but still parses, so nothing catches it.
+- **The role refuses to run** alongside unmanaged CIFS lines in `/etc/fstab`,
+  and prints the command to comment them out.
 
 ## Gotchas discovered the hard way
 

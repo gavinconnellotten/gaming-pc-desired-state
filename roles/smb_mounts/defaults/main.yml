@@ -2,35 +2,35 @@
 # Ownership of the mounted files. CIFS has no concept of the server's Unix
 # ownership, so the client decides: every file appears owned by this uid/gid.
 # Getting this wrong is the difference between a browsable share and one that
-# only root can read. Overridden per-host by setup-smb-credentials.sh output.
+# only root can read. Overridden per-host in host_vars/.
 smb_mounts_uid: 1000
 smb_mounts_gid: 1000
 
 smb_mounts_file_mode: "0664"
 smb_mounts_dir_mode: "0775"
 
-smb_mounts_credentials_dir: /etc/samba/credentials
-
 # Packages needed to mount CIFS at all. Without cifs-utils, mount(8) reports
 # "unknown filesystem type 'cifs'".
 smb_mounts_packages:
   - cifs-utils
 
-# SMB protocol version. Left empty so the kernel negotiates the highest the
-# server supports (3.1.1 on anything modern). Pin it (e.g. "3.0") only if the
-# NAS is old enough to need it — a wrong pin fails the mount outright.
+# SMB protocol version. Empty lets the kernel negotiate the highest the server
+# supports (3.1.1 on anything modern). Pin it per-host only when a specific
+# version is known to work — a wrong pin fails the mount outright, and an
+# unpinned mount that has never been tested is its own kind of risk.
 smb_mounts_version: ""
 
 # Mount options, in the order they'll appear in fstab. The systemd-specific
 # ones are what make boot-time network mounts actually work:
 #
 #   _netdev              — this is a network filesystem; don't try it before
-#                          the network is up. Its absence is the single most
-#                          common cause of "mounts fine manually, empty after
-#                          a reboot".
-#   x-systemd.automount  — don't mount at boot at all; mount on first access.
-#                          Removes the boot-order race entirely and means a
-#                          NAS that's slow to wake still works.
+#                          the network is up. Note it must be in the OPTIONS
+#                          field: gaming-pc's hand-written entries had it in
+#                          field 7, after dump/pass, where it is an ignored
+#                          trailing field that does nothing at all.
+#   x-systemd.automount  — don't mount at boot; mount on first access. Removes
+#                          the boot-order race entirely and means a NAS that's
+#                          slow to wake still works.
 #   nofail               — never hold up boot because a share is unreachable.
 #   x-systemd.mount-timeout — give up after this long rather than hanging.
 #   x-systemd.idle-timeout  — unmount when unused, so a sleeping NAS doesn't
@@ -51,9 +51,11 @@ smb_mounts_ignore_conflicts: false
 # The shares themselves. Defined per-host, not here — see
 # host_vars/gaming-pc.yml. Each entry needs:
 #
-#   name:        short identifier, also the credential filename
+#   name:        short identifier, used only for reporting
 #   server:      hostname or IP of the SMB server
-#   share:       share name as exported by the server
+#   share:       share name as exported by the server, optionally followed by
+#                a subdirectory below it (e.g. "SSD/MOVIES")
 #   mountpoint:  absolute path to mount at
-#   credentials: path to the credential file (created by the setup script)
+#   credentials: path to the credential file. Several shares may point at the
+#                same file; the role dedupes.
 smb_mounts: []

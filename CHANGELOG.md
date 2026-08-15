@@ -3,6 +3,85 @@
 Dated log of what's been done to `gaming-pc`, and whether it's been codified
 into this repo yet.
 
+## 2026-08-15
+
+- **SMB shares fixed.** The two CIFS mounts had been failing since they were
+  written. Diagnosed on the machine rather than from description, which changed
+  the answer completely.
+  - **Root cause: trailing whitespace in `/etc/samba/credentials`.** The file
+    read `username=gavin  `. `mount.cifs` passes the value verbatim, so the
+    server was asked to authenticate a user literally named `gavin␣␣` and
+    answered `STATUS_LOGON_FAILURE` — surfacing as
+    `mount error(13): Permission denied` and, in Dolphin, as a share that
+    exists but is empty.
+  - Not the theorised cause. `roles/smb_mounts/README.md` had ranked a missing
+    `_netdev` as most likely; the journal showed the mounts being attempted
+    with the network up and rejected on authentication. `cifs-utils` was
+    already installed and `vers=3.0` was fine. README corrected.
+  - **Fixed manually** with `sed -i 's/[ \t]*$//' /etc/samba/credentials`, then
+    remounted. Both shares verified mounted with content (69 and 116 entries).
+  - **Codified**: the role now strips CRLF and trailing whitespace from
+    `username=`/`domain=` lines, and reports (without altering) a password
+    ending in whitespace, since that could be deliberate.
+- **Three real bugs found in `roles/smb_mounts` while validating it against the
+  machine.** All were written blind and none would have worked:
+  - **Automount unit names were derived by string substitution**, giving
+    `mnt-plex-movies.automount`. systemd escapes a literal hyphen in a path
+    component to `\x2d`, so the real unit is `mnt-plex\x2dmovies.automount`.
+    The task's `failed_when: false` would have hidden this entirely. Now uses
+    `systemd-escape --path`.
+  - **`validate: findmnt --verify` could never have succeeded.** It checks the
+    whole file, and this fstab lists `/boot/efi` before `/boot` — a
+    pre-existing, unrelated error that made `findmnt` exit 1. Replaced with
+    `files/validate-fstab.sh`, which rejects parse errors (the class that
+    breaks boot, and the only class this role can introduce) and reports the
+    rest. The `/boot/efi` ordering is left alone deliberately.
+  - **The role assumed `/etc/samba/credentials` was a directory** of per-share
+    files; on this machine it's a single file. The role no longer creates it at
+    all — the setup script owns that — and dedupes shares that point at one
+    credential file.
+- **Third share added**: `//homeassistant.local/MEDIA/TV SHOWS` at
+  `/mnt/plex-tv`. The space in the share name has to be written `\040` in
+  fstab, or the line fails to parse; the role escapes it, and the validator was
+  confirmed to reject the unescaped form.
+  - **One backslash in the Jinja filter, not two.** `replace(' ', '\\040')`
+    renders as `\\040`, which produces a wrong UNC path that still *parses* —
+    so it would have failed at mount time with nothing in the fstab validation
+    to catch it. Jinja passes the literal through here rather than treating
+    `\0` as an escape. Written wrong first, then caught by rendering the block
+    and reading the output rather than reasoning about it.
+- **`scripts/setup-smb-credentials.sh` now verifies before it writes** —
+  credentials go to a temporary 0600 file, are tested with `smbclient`, and are
+  only installed if the login actually works. Inputs are whitespace-trimmed.
+  This is the direct lesson of the bug above: a credential file that is written
+  but never tested can be silently wrong for weeks.
+- **`ansible-core` installed** (2.20.7) and the old hand-written CIFS lines in
+  `/etc/fstab` commented out, so the role can run. Both were manual steps.
+- **Python interpreter pinned** to `/usr/bin/python3` in `inventory.ini`,
+  silencing Ansible's interpreter-discovery warning. The versioned path
+  (`/usr/bin/python3.14`) would break on the next Fedora upgrade; the symlink is
+  RPM-owned and tracks the system Python.
+- **Role logic verified without applying it**, since `--syntax-check` proves
+  very little:
+  - The fstab block was rendered from the real `host_vars`, spliced into a copy
+    of the real `/etc/fstab`, and run through the role's own validator —
+    `findmnt` resolves all three entries, `TV\040SHOWS` included.
+  - The credential-hygiene tasks were run against a scratch file containing
+    every defect they're meant to handle. Username and domain trimmed, CRs
+    stripped, and a password's trailing space correctly left alone.
+  - The verification/reporting section was run standalone in check mode as an
+    unprivileged user, confirming the loops and conditions behave.
+- **Applied successfully.** All three shares mount and are visible in Dolphin:
+  `/mnt/plex-movies` (69 entries), `/mnt/plex-music` (116), `/mnt/plex-tv` (4).
+  `/etc/fstab` now carries the managed block; no failed units.
+  - As designed, `mnt-plex\x2dtv.automount` is active/running while the movies
+    and music automount units are inactive — those two paths were already
+    mounted directly, so the automount can't take over until they're unmounted.
+    A reboot resolves it, and is also the real test that `_netdev` being in the
+    options field now actually does something.
+  - **SMB shares are now managed.** A rebuilt machine needs the credential file
+    recreated (`./scripts/setup-smb-credentials.sh`) and then one playbook run.
+
 ## 2026-08-14
 
 - **Base machine**: newly built gaming PC, `gaming-pc`, running Nobara Linux

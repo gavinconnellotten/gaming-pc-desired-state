@@ -4,45 +4,106 @@
     name: "{{ smb_mounts_packages }}"
     state: present
 
-- name: Ensure credentials directory exists
-  ansible.builtin.file:
-    path: "{{ smb_mounts_credentials_dir }}"
-    state: directory
-    owner: root
-    group: root
-    mode: "0700"
+# Several shares can legitimately share one credential file (gaming-pc's two
+# both live on the same server under the same login), so dedupe before doing
+# anything per-file — otherwise the checks below run twice on the same path
+# and report the same problem twice.
+- name: Collect the distinct credential files
+  ansible.builtin.set_fact:
+    smb_mounts_credential_files: "{{ smb_mounts | map(attribute='credentials') | unique | list }}"
 
 # Passwords are not in this repo by design, so the role can't create these.
 # Check first and fail with something actionable, rather than letting mount
 # fail later with a bare "permission denied" that looks like a server problem.
+#
+# Deliberately no task creating the parent directory: whether the credential
+# path is a single file (/etc/samba/credentials) or a directory of per-share
+# files (/etc/samba/credentials/foo) is the operator's choice, and the setup
+# script creates whichever it needs. A role that assumed one shape would fail
+# outright against the other.
 - name: Check that credential files exist
   ansible.builtin.stat:
-    path: "{{ item.credentials }}"
+    path: "{{ item }}"
   register: smb_mounts_cred_stat
-  loop: "{{ smb_mounts }}"
-  loop_control:
-    label: "{{ item.name }}"
+  loop: "{{ smb_mounts_credential_files }}"
 
 - name: Fail with instructions if any credential file is missing
   ansible.builtin.fail:
     msg: >-
       Missing SMB credential file(s):
-      {{ smb_mounts_cred_stat.results | rejectattr('stat.exists') | map(attribute='item.credentials') | join(', ') }}.
+      {{ smb_mounts_cred_stat.results | rejectattr('stat.exists') | map(attribute='item') | join(', ') }}.
       Create them by running ./scripts/setup-smb-credentials.sh — it prompts
-      for the share logins and writes root-owned 0600 files. Nothing will
-      mount until they exist.
+      for the share login, verifies it against the server, and writes a
+      root-owned 0600 file. Nothing will mount until they exist.
   when: smb_mounts_cred_stat.results | rejectattr('stat.exists') | list | length > 0
 
 # A credential file others can read is as good as a published password.
 - name: Enforce credential file permissions
   ansible.builtin.file:
-    path: "{{ item.credentials }}"
+    path: "{{ item }}"
     owner: root
     group: root
     mode: "0600"
-  loop: "{{ smb_mounts }}"
+  loop: "{{ smb_mounts_credential_files }}"
+
+# ---------------------------------------------------------------------------
+# Credential hygiene
+#
+# This is the bug that broke these mounts on 2026-08-15 and cost an afternoon:
+# the file read `username=gavin  ` with two trailing spaces. mount.cifs passes
+# the value verbatim, so the server was asked to authenticate a user literally
+# named "gavin  " and answered STATUS_LOGON_FAILURE. Typing the same password
+# by hand into smbclient worked perfectly, which made it look like a server or
+# protocol problem rather than a whitespace problem.
+#
+# Trailing whitespace is invisible in every editor, so detecting it is worth
+# more than remembering it. Fixed automatically for username/domain, where
+# trailing spaces are never meaningful.
+# ---------------------------------------------------------------------------
+- name: Strip carriage returns from credential files
+  ansible.builtin.replace:
+    path: "{{ item }}"
+    regexp: '(?m)\r+$'
+    replace: ''
+  loop: "{{ smb_mounts_credential_files }}"
+  no_log: true
+
+- name: Strip trailing whitespace from username and domain lines
+  ansible.builtin.replace:
+    path: "{{ item }}"
+    regexp: '(?m)^(username|domain)=([^\n]*?)[ \t]+$'
+    replace: '\1=\2'
+  loop: "{{ smb_mounts_credential_files }}"
+  no_log: true
+
+# Not auto-fixed: a trailing space can legitimately be part of a password, so
+# stripping it would be the role breaking a working login. Report instead.
+# Prints only the filename — never the value.
+- name: Check for a password with trailing whitespace
+  ansible.builtin.command:
+    argv:
+      - awk
+      - '/^password=/ { v = substr($0, index($0, "=") + 1); if (v ~ /[ \t]$/) print FILENAME }'
+      - "{{ item }}"
+  register: smb_mounts_password_ws
+  changed_when: false
+  check_mode: false
+  loop: "{{ smb_mounts_credential_files }}"
+
+- name: Warn about passwords with trailing whitespace
+  ansible.builtin.debug:
+    msg: >-
+      {{ item.stdout }} has a password ending in whitespace. That may be
+      deliberate, so it has been left alone — but if these mounts fail to
+      authenticate, this is the first thing to suspect.
+  when: item.stdout | trim | length > 0
+  loop: "{{ smb_mounts_password_ws.results }}"
   loop_control:
-    label: "{{ item.name }}"
+    label: "{{ item.item }}"
+
+# ---------------------------------------------------------------------------
+# fstab
+# ---------------------------------------------------------------------------
 
 # Must exist before the fstab block is validated: findmnt --verify rejects an
 # entry whose target directory is missing.
@@ -82,15 +143,21 @@
       {{ smb_mounts_conflicts.stdout }}
 
       Leaving them alongside the managed block gives each mountpoint two
-      competing definitions. Comment them out or delete them, then re-run.
+      competing definitions. Comment them out and re-run. To do that with a
+      backup, inspect this first and then run it:
+
+        sudo cp /etc/fstab /etc/fstab.bak
+        sudo sed -i -E 's|^([^#].*[[:space:]]cifs[[:space:]].*)$|# \1|' /etc/fstab
+
       Set smb_mounts_ignore_conflicts=true to proceed anyway (not advised).
   when:
     - smb_mounts_conflicts.stdout | trim | length > 0
     - not smb_mounts_ignore_conflicts | bool
 
-# Reported, not enforced: blockinfile's validate step below checks the whole
-# file, so a pre-existing problem elsewhere in fstab would otherwise surface
-# as a confusing failure to write our own entries.
+# Reported, not enforced. gaming-pc's fstab lists /boot/efi before /boot, which
+# findmnt calls an error — pre-existing, unrelated to us, and in a file we've
+# chosen not to rewrite. The validator below tolerates that class of problem
+# and rejects only parse errors, so this report is how it stays visible.
 - name: Check the health of the existing fstab
   ansible.builtin.command: findmnt --verify --tab-file /etc/fstab
   register: smb_mounts_fstab_health
@@ -98,12 +165,12 @@
   failed_when: false
   check_mode: false
 
-- name: Warn if fstab already has problems
+- name: Report pre-existing fstab problems
   ansible.builtin.debug:
     msg: >-
-      Note: findmnt reports pre-existing issues in /etc/fstab. These are not
-      caused by this role, but may block the write below.
-      {{ smb_mounts_fstab_health.stdout }}
+      Note: findmnt reports pre-existing issues in /etc/fstab, not caused by
+      this role and not blocking it. Worth fixing separately.
+      {{ smb_mounts_fstab_health.stdout_lines }}
   when: smb_mounts_fstab_health.rc != 0
 
 # Managed as one delimited block so entries stay together and ordered, and can
@@ -112,12 +179,26 @@
   ansible.builtin.blockinfile:
     path: /etc/fstab
     marker: "# {mark} ANSIBLE MANAGED: smb_mounts"
+    # Spaces in a share name or mountpoint must be written as \040: fstab
+    # splits fields on whitespace, so "MEDIA/TV SHOWS" unescaped turns one
+    # entry into two nonsense fields and the line fails to parse.
+    #
+    # ONE backslash, not two. Jinja passes the literal straight through here
+    # rather than treating \0 as an escape sequence, so '\\040' renders as
+    # \\040 and produces a UNC path that is wrong but still parses — a mount
+    # failure with no syntax error to catch it. Verified by rendering, not
+    # by reasoning: the two-backslash version was written first and was wrong.
     block: |
       {% for m in smb_mounts %}
-      //{{ m.server }}/{{ m.share }} {{ m.mountpoint }} cifs credentials={{ m.credentials }},uid={{ smb_mounts_uid }},gid={{ smb_mounts_gid }},file_mode={{ smb_mounts_file_mode }},dir_mode={{ smb_mounts_dir_mode }}{% if smb_mounts_version %},vers={{ smb_mounts_version }}{% endif %},{{ smb_mounts_options | join(',') }} 0 0
+      //{{ m.server }}/{{ m.share | replace(' ', '\040') }} {{ m.mountpoint | replace(' ', '\040') }} cifs credentials={{ m.credentials }},uid={{ smb_mounts_uid }},gid={{ smb_mounts_gid }},file_mode={{ smb_mounts_file_mode }},dir_mode={{ smb_mounts_dir_mode }}{% if smb_mounts_version %},vers={{ smb_mounts_version }}{% endif %},{{ smb_mounts_options | join(',') }} 0 0
       {% endfor %}
     backup: true
-    validate: "findmnt --verify --tab-file %s"
+    # Invoked through bash rather than executed directly: this repo lives on
+    # the NTFS-formatted SSD, where git has core.fileMode=false and so records
+    # new files as 0644 regardless of their permissions on disk. A fresh clone
+    # would get a non-executable validator and every run would fail with
+    # "permission denied" on a file that looks executable locally.
+    validate: "/bin/bash {{ role_path }}/files/validate-fstab.sh %s"
   notify: Reload systemd for fstab changes
   when: smb_mounts | length > 0
 
@@ -127,36 +208,128 @@
 - name: Apply fstab changes now
   ansible.builtin.meta: flush_handlers
 
-- name: Start the automount units
-  ansible.builtin.systemd_service:
-    name: "{{ item.mountpoint | regex_replace('^/', '') | regex_replace('/', '-') }}.automount"
-    state: started
-    enabled: true
+# ---------------------------------------------------------------------------
+# Verification
+# ---------------------------------------------------------------------------
+
+# systemd escapes a path into a unit name in a way string substitution does not
+# reproduce: /mnt/plex-movies is mnt-plex\x2dmovies.mount, because a literal
+# hyphen in a path component is escaped to \x2d (a hyphen means "/" in a unit
+# name). Deriving the name by replacing "/" with "-" yields
+# mnt-plex-movies.mount, which does not exist — and a systemd task told to
+# start a non-existent unit fails in a way that is easy to mask and easy to
+# miss. Ask systemd-escape rather than guessing.
+- name: Resolve the systemd automount unit name for each mountpoint
+  ansible.builtin.command: "systemd-escape --path --suffix=automount {{ item.mountpoint }}"
+  register: smb_mounts_unit_names
+  changed_when: false
+  check_mode: false
   loop: "{{ smb_mounts }}"
   loop_control:
     label: "{{ item.mountpoint }}"
-  failed_when: false
 
-# Touching the mountpoint is what triggers an automount, so this doubles as
-# the functional test: if the share lists, the whole chain works.
+# daemon-reload regenerates the units from fstab but does not start them, so
+# without this the new automount only takes effect on the next boot.
+#
+# Expected to fail for a path that is already mounted directly — which is the
+# case when migrating from hand-written fstab entries that mounted at boot. The
+# existing mount keeps working; the automount takes over after a reboot or an
+# unmount. Reported below rather than treated as an error.
+# Starting an automount unit over a path that's already mounted fails, and so
+# does starting one that doesn't exist yet. Both are expected — the first when
+# migrating from hand-written fstab entries that mounted at boot, the second in
+# --check, where fstab was never written and so the units were never generated.
+# Check first and skip those, rather than letting a dry run print a wall of red
+# for conditions that are entirely normal.
+- name: Check which mountpoints are already mounted
+  ansible.builtin.command: "findmnt --noheadings --output SOURCE --target {{ item.mountpoint }} --types cifs"
+  register: smb_mounts_premounted
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  loop: "{{ smb_mounts }}"
+  loop_control:
+    label: "{{ item.mountpoint }}"
+
+# daemon-reload regenerates the units from fstab but does not start them, so
+# without this the new automount only takes effect on the next boot.
+- name: Start the automount units
+  ansible.builtin.systemd_service:
+    name: "{{ item.0.stdout | trim }}"
+    state: started
+  register: smb_mounts_automount_start
+  ignore_errors: true
+  when:
+    - not ansible_check_mode
+    - item.1.rc != 0
+  loop: "{{ smb_mounts_unit_names.results | zip(smb_mounts_premounted.results) | list }}"
+  loop_control:
+    label: "{{ item.0.stdout | trim }}"
+
+- name: Note mountpoints left on their existing mount
+  ansible.builtin.debug:
+    msg: >-
+      {{ item.0.item.mountpoint }} is already mounted from
+      {{ item.1.stdout | trim }}, so its automount unit was not started. The
+      existing mount keeps working; the automount takes over after a reboot.
+  when:
+    - not ansible_check_mode
+    - item.1.rc == 0
+  loop: "{{ smb_mounts_unit_names.results | zip(smb_mounts_premounted.results) | list }}"
+  loop_control:
+    label: "{{ item.0.item.mountpoint }}"
+
+# ignore_errors rather than failed_when: false — the latter rewrites `failed`
+# to false, leaving no way to tell a real failure from a success here.
+- name: Report automount units that could not be started
+  ansible.builtin.debug:
+    msg: >-
+      {{ item.item.0.stdout | trim }} failed to start:
+      {{ item.msg | default('see systemctl status') }}
+  when: item.failed | default(false)
+  loop: "{{ smb_mounts_automount_start.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.0.stdout | default('?') | trim }}"
+
+# Touching the mountpoint is what triggers an automount, so this doubles as the
+# functional test: if the share lists, the whole chain works — credentials,
+# protocol version, share path, network, and the automount unit.
 - name: Verify each share mounts and is readable
   ansible.builtin.command: "ls -A {{ item.mountpoint }}"
   register: smb_mounts_verify
   changed_when: false
   failed_when: false
+  check_mode: false
   loop: "{{ smb_mounts }}"
   loop_control:
     label: "{{ item.mountpoint }}"
 
+- name: Confirm each mountpoint is a CIFS mount rather than a bare directory
+  ansible.builtin.command: "findmnt --noheadings --output SOURCE --target {{ item.mountpoint }} --types cifs"
+  register: smb_mounts_findmnt
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  loop: "{{ smb_mounts }}"
+  loop_control:
+    label: "{{ item.mountpoint }}"
+
+# An empty directory and a failed mount look identical in a file manager, which
+# is the symptom that started all this. Distinguish them explicitly.
 - name: Report mount status
   ansible.builtin.debug:
     msg: >-
-      {{ item.item.mountpoint }}:
-      {% if item.rc != 0 %}FAILED to access — {{ item.stderr | default('unknown error') }}
-      {% elif item.stdout | length == 0 %}mounted but EMPTY — check the share
-      has content and that the server-side path is right
-      {% else %}OK, {{ item.stdout_lines | length }} entries visible
+      {{ item.0.item.mountpoint }}:
+      {% if item.1.rc != 0 %}NOT MOUNTED — the directory exists but no CIFS
+      filesystem is on it. Check `journalctl -b | grep -i cifs` for the reason.
+      {% elif item.0.rc != 0 %}mounted from {{ item.1.stdout | trim }} but
+      unreadable — {{ item.0.stderr | default('unknown error') }}
+      {% elif item.0.stdout | length == 0 %}mounted from {{ item.1.stdout | trim }}
+      but EMPTY — the mount succeeded, so check the share genuinely has content
+      at that path
+      {% else %}OK — {{ item.1.stdout | trim }},
+      {{ item.0.stdout_lines | length }} entries visible
       {% endif %}
-  loop: "{{ smb_mounts_verify.results }}"
+  loop: "{{ smb_mounts_verify.results | zip(smb_mounts_findmnt.results) | list }}"
   loop_control:
-    label: "{{ item.item.name }}"
+    label: "{{ item.0.item.name }}"

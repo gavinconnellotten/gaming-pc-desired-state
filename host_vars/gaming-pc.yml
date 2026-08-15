@@ -1,26 +1,47 @@
 ---
 # Host-specific configuration for gaming-pc.
 #
-# The SMB section below is a PLACEHOLDER. Run ./scripts/setup-smb-credentials.sh
-# and paste the YAML it prints over the top of it — the script knows the real
-# uid/gid and generates matching credential filenames.
-#
-# No passwords here. They live in root-owned 0600 files under
-# /etc/samba/credentials, referenced by path.
+# No passwords here. They live in a root-owned 0600 file outside the repo,
+# referenced by path. See scripts/setup-smb-credentials.sh.
 
-# Ownership applied to everything inside the CIFS mounts.
+# Ownership applied to everything inside the CIFS mounts. CIFS carries no Unix
+# ownership, so the client decides — these must match the desktop user or the
+# shares mount but aren't usable.
 smb_mounts_uid: 1000
 smb_mounts_gid: 1000
 
-smb_mounts:
-  - name: nas-media
-    server: CHANGEME-server-or-ip
-    share: CHANGEME-share-name
-    mountpoint: /mnt/media
-    credentials: /etc/samba/credentials/nas-media
+# Pinned rather than negotiated, because 3.0 is the version these mounts were
+# actually verified working with on 2026-08-15. The server (Samba 4.24, the
+# Home Assistant "SambaNAS2" addon) speaks 3.1.1 too, so this can be set back
+# to "" to let the kernel negotiate the highest — but that's an untested
+# change, not a free one.
+smb_mounts_version: "3.0"
 
-  - name: nas-storage
-    server: CHANGEME-server-or-ip
-    share: CHANGEME-share-name
-    mountpoint: /mnt/storage
-    credentials: /etc/samba/credentials/nas-storage
+# Both shares live on the same server and use the same login, so they share one
+# credential file. Per-share files would also work: the role only cares that
+# each entry's `credentials` path exists and is 0600 root:root.
+#
+# NOTE the `share` values carry a subdirectory ("SSD/MOVIES", not "SSD").
+# mount.cifs supports a path below the share root, and these mount the
+# subdirectory rather than the whole disk. The share roots are `SSD` and
+# `ELEMENTS`; MOVIES and Music are directories within them.
+smb_mounts:
+  - name: plex-movies
+    server: homeassistant.local
+    share: SSD/MOVIES
+    mountpoint: /mnt/plex-movies
+    credentials: /etc/samba/credentials
+
+  - name: plex-music
+    server: homeassistant.local
+    share: ELEMENTS/Music
+    mountpoint: /mnt/plex-music
+    credentials: /etc/samba/credentials
+
+  # Written with a literal space. The role escapes it to \040 for fstab —
+  # don't pre-escape it here, or it'll be escaped twice.
+  - name: plex-tv
+    server: homeassistant.local
+    share: MEDIA/TV SHOWS
+    mountpoint: /mnt/plex-tv
+    credentials: /etc/samba/credentials
