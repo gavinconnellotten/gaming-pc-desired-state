@@ -106,6 +106,39 @@ into this repo yet.
     worth reading again.
 - **Baseline recaptured** post-reboot, replacing the pre-reboot one.
 
+## 2026-08-15 (KDE capture)
+
+- **Plasma settings are now captured, and deliberately not managed.**
+  `state/90-desktop-kde.txt` previously listed config *filenames*; it now dumps
+  an allowlist of the settings files themselves, plus the distro defaults they
+  cascade on top of.
+  - **No role applies any of it.** The desktop is still being set up, so
+    codifying it now would freeze a half-finished configuration. The capture
+    exists so that when it is finished, "what have I actually customised?"
+    comes from the machine rather than from memory.
+  - **Why there's little to codify yet**: the machine is close to stock Nobara
+    Plasma. `kcminputrc` doesn't exist, `kwinrc` holds a generated UUID and the
+    default tiling layout, `kdeglobals` `[General]` is one opaque
+    `ColorSchemeHash`, and the 251 lines of `kglobalshortcutsrc` are Plasma's
+    own defaults.
+  - The clear exception is `powerdevilrc` — dim at 600s, display off at 900s,
+    120s when locked, `AutoSuspendAction=0`. **Confirmed deliberate by the
+    owner**, so recorded as intentional rather than as drift to be tidied.
+- **Three exclusions, chosen before writing anything that dumps file
+  contents**, since this output is committed to a public repo:
+  `~/.config/kdeconnect/` holds a device-pairing **private key** and
+  certificate; `kwinoutputconfig.json` holds monitor EDID hashes and
+  identifiers; `kactivitymanagerd-statsrc` holds usage statistics. A naive
+  "capture my dotfiles" sweep would have published the first of those.
+  Verified after the fact: no key material, EDID field, or username in the
+  output.
+- **The panel is inventoried, not recorded.** `plasma-org.kde.plasma.desktop-appletsrc`
+  carries per-screen geometry and applet ids that mean nothing on a rebuilt
+  machine, so only the widget list is captured.
+- **Noted for whenever the role does get built**: use `kwriteconfig6`, not file
+  copying. Plasma rewrites these files while running, so copying whole files
+  fights it for ownership and clobbers anything undeclared.
+
 ## 2026-08-15 (later)
 
 - **Answered "what did I install to fix Steam?" from the machine rather than

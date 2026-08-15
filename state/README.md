@@ -45,6 +45,37 @@ It covers RPMs only. Two other things drift and are recorded elsewhere:
   `~/.steam/root/compatibilitytools.d/` as plain directories, so no package
   manager knows they exist and a rebuild silently loses them.
 
+## Reading `90-desktop-kde.txt`
+
+Plasma settings, captured so that "what have I actually customised?" is
+answerable from the machine when it comes time to codify the desktop. **No role
+manages any of this yet** — the desktop is still being set up, and codifying a
+half-finished configuration would be worse than not codifying it.
+
+It dumps an **allowlist** of settings files, never a sweep of `~/.config`.
+Three exclusions are deliberate and must stay that way, because this file is
+committed:
+
+| Excluded | Why |
+|---|---|
+| `kdeconnect/` | Device pairing **private key** and certificate |
+| `kwinoutputconfig.json` | Monitor EDID hashes and identifiers |
+| `kactivitymanagerd-statsrc` | Usage statistics — what was opened, and when |
+
+Also skipped as generated state with no settings in it: `session/`,
+`plasmanotifyrc`, `kconf_updaterc`, `Trolltech.conf`, `QtProject.conf`.
+
+Two things are worth understanding before reading it:
+
+- **Plasma config cascades** — `/etc/xdg` → `~/.config/kdedefaults` (the
+  distro's look-and-feel) → `~/.config`. The user files already hold only what
+  deviates from the defaults beneath them, so this is a delta already. The
+  distro defaults are captured alongside for comparison.
+- **The panel is inventoried, not recorded.** `plasma-org.kde.plasma.desktop-appletsrc`
+  carries per-screen geometry and applet ids that mean nothing on a rebuilt
+  machine. Which widgets are on the panel is worth knowing; where they sit is
+  not worth diffing.
+
 ## Reading `45-network-mounts.txt`
 
 **An empty "currently mounted" section does not mean the shares are broken.**
@@ -88,6 +119,6 @@ exist and what their permissions are, nothing more.
 | `60-flatpaks-snaps.txt` | Flatpak apps, runtimes, remotes, and Snap packages |
 | `70-services.txt` | Enabled units, timers, failed units |
 | `80-kernel-tuning.txt` | sysctl, modprobe, udev, limits, CPU governor |
-| `90-desktop-kde.txt` | Plasma version, displays, config file inventory |
+| `90-desktop-kde.txt` | Plasma settings — an allowlist, see below |
 | `95-gaming-stack.txt` | Steam/Proton/Lutris/gamemode and controllers |
 | `97-user-env.txt` | Groups, shell, dotfiles, KVM access, Claude doctor |

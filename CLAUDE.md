@@ -58,7 +58,7 @@ diagnostics gotcha below; this distinction is load-bearing.
 | SMB network shares | **Managed and applied** — `roles/smb_mounts` |
 | State capture | `scripts/capture-state.sh` → `state/` (baseline captured 2026-08-15) |
 | NVIDIA driver | Installed out-of-band, deliberately unmanaged |
-| Dotfiles / KDE settings | Not managed yet (intended scope, not started) |
+| Dotfiles / KDE settings | **Captured, deliberately not managed** — see below |
 | Gaming stack | **Post-install additions managed** — `roles/gaming`. Nobara's own packages deliberately unmanaged |
 
 ## Manage the delta, not the distribution
@@ -114,6 +114,39 @@ Worth knowing when re-reading this:
   two renders a path that's wrong but still parses, so nothing catches it.
 - **The role refuses to run** alongside unmanaged CIFS lines in `/etc/fstab`,
   and prints the command to comment them out.
+
+## KDE settings — captured, not managed, and that's on purpose
+
+`state/90-desktop-kde.txt` records Plasma's settings. **No role applies them,
+and that's a decision rather than an omission**: as of 2026-08-15 the desktop is
+still being set up, so codifying it would freeze a half-finished configuration.
+Don't build a `kde_settings` role until the owner says the desktop is settled.
+
+What the capture showed, which is why there's little to codify yet: this
+machine is close to stock Nobara Plasma. `kcminputrc` doesn't exist,
+`kwinrc` holds a generated UUID and the default tiling layout, `kdeglobals`
+`[General]` is a single opaque `ColorSchemeHash`, and the 251 lines of
+`kglobalshortcutsrc` are Plasma's own defaults.
+
+The one clear set of deliberate choices is `powerdevilrc` — dim at 600s,
+display off at 900s, 120s when locked, `AutoSuspendAction=0`. **The owner
+confirmed these are intentional** (this machine shouldn't sleep mid-download).
+Don't "fix" them.
+
+When the time comes, use **`kwriteconfig6`, not file copying**. Plasma rewrites
+these files while it runs, so copying whole files fights it for ownership,
+clobbers every setting not declared, and restores UUIDs that mean nothing on a
+new install. Declaring individual keys is the same principle as the managed
+block in `/etc/fstab`: own the settings that were decided, leave the rest alone.
+
+**Three files must never be captured or committed** — the capture excludes them
+by name and that list is load-bearing, not decoration:
+
+| File | Why |
+|---|---|
+| `~/.config/kdeconnect/` | Device pairing **private key** and certificate |
+| `kwinoutputconfig.json` | Monitor EDID hashes and identifiers |
+| `kactivitymanagerd-statsrc` | Usage statistics |
 
 ## Gotchas discovered the hard way
 

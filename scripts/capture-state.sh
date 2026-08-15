@@ -88,6 +88,32 @@ show() {
     fi
 }
 
+# kde_config_dump <file>... — contents of named Plasma settings files.
+#
+# An allowlist, never a sweep of ~/.config. Three things there must not end up
+# in a committed file:
+#
+#   kdeconnect/               device pairing private key and certificate
+#   kwinoutputconfig.json     monitor EDID hashes and identifiers
+#   kactivitymanagerd-statsrc usage statistics — what was opened, and when
+#
+# Plasma's config cascades: /etc/xdg -> ~/.config/kdedefaults (the distro's
+# look-and-feel) -> ~/.config. The user's files therefore already hold only
+# what deviates from the defaults underneath, which is what makes dumping them
+# a delta rather than a wall of settings.
+kde_config_dump() {
+    local base="${XDG_CONFIG_HOME:-$HOME/.config}" f
+    for f in "$@"; do
+        [ -r "$base/$f" ] || continue
+        printf '### %s\n' "$f"
+        # Masks values that move on their own rather than when a setting
+        # changes — a Dolphin view timestamp updates just from browsing.
+        sed -E 's/^(ViewPropsTimestamp)=.*/\1=<timestamp>/' "$base/$f" |
+            grep -v '^[[:space:]]*$'
+        printf '\n'
+    done
+}
+
 # post_iso_packages — packages explicitly installed since the ISO was built.
 #
 # dnf transaction 1 is the image's own package set, recorded when Nobara built
@@ -425,19 +451,57 @@ printf 'Capturing state to %s/ (redaction: %s)\n' "$OUT_DIR" \
 # --------------------------------------------------------------------------
 # Desktop (KDE Plasma)
 #
-# Listing config filenames rather than dumping their contents: the contents are
-# large, churn constantly, and can carry personal data. When we get to managing
-# dotfiles we'll pick specific files deliberately.
+# Dumps an ALLOWLIST of settings files rather than sweeping ~/.config, because
+# this output is committed. See kde_config_dump() for what is excluded and why
+# — one of the exclusions is a private key.
+#
+# Nothing here is managed by a role yet (2026-08-15): the desktop is still
+# being set up, so codifying it now would freeze a half-finished configuration.
+# This section exists so that when that changes, the answer to "what have I
+# actually customised?" comes from the machine rather than from memory.
 # --------------------------------------------------------------------------
 {
     capture "Plasma version" plasmashell --version
     capture "KDE Frameworks version" kf6-config --version
     capture "Display configuration" kscreen-doctor -o
-    capture "Config files in ~/.config" sh -c \
+
+    printf '## What is captured here, and what is not\n\n'
+    printf 'The settings below are an allowlist. Deliberately NOT captured,\n'
+    printf 'because this file is committed to git:\n\n'
+    printf '  kdeconnect/                device pairing PRIVATE KEY and certificate\n'
+    printf '  kwinoutputconfig.json      monitor EDID hashes and identifiers\n'
+    printf '  kactivitymanagerd-statsrc  usage statistics (what was opened, when)\n'
+    printf '  session/, plasmanotifyrc, kconf_updaterc, Trolltech.conf,\n'
+    printf '  QtProject.conf             generated state, no settings in them\n\n'
+    printf 'Plasma config cascades: /etc/xdg -> ~/.config/kdedefaults (the\n'
+    printf "distro's look-and-feel) -> ~/.config. The user files below therefore\n"
+    printf 'already contain only what deviates from the defaults beneath them.\n\n'
+
+    printf '## Plasma settings (user)\n\n'
+    kde_config_dump kdeglobals kwinrc kcminputrc kscreenlockerrc \
+        powerdevilrc powermanagementprofilesrc plasmarc plasmashellrc \
+        dolphinrc konsolerc katerc kglobalshortcutsrc
+
+    printf '## Distro defaults these sit on top of\n\n'
+    kde_config_dump kdedefaults/kdeglobals kdedefaults/kwinrc \
+        kdedefaults/kcminputrc kdedefaults/plasmarc kdedefaults/ksplashrc \
+        kdedefaults/package
+
+    printf '## Toolkit and XDG integration\n\n'
+    kde_config_dump gtkrc gtkrc-2.0 gtk-3.0/settings.ini gtk-4.0/settings.ini \
+        user-dirs.dirs mimeapps.list
+
+    # Widget inventory only. The full appletsrc carries per-screen geometry and
+    # applet ids that mean nothing on a rebuilt machine, so restoring it is a
+    # bad idea and diffing it is noise. Which widgets are on the panel is the
+    # part worth knowing.
+    capture "Panel widgets (inventory only — layout is screen-specific)" sh -c \
+        "grep -hE '^plugin=' \"\${XDG_CONFIG_HOME:-\$HOME/.config}/plasma-org.kde.plasma.desktop-appletsrc\" 2>/dev/null | sed 's/^plugin=//' | sort | uniq -c | tr -s ' ' || echo '(no panel configuration)'"
+    capture "Config files present in ~/.config (names only)" sh -c \
         "ls -1 \"\${XDG_CONFIG_HOME:-\$HOME/.config}\" 2>/dev/null | sort"
     capture "Autostart entries" sh -c \
         "ls -1 \"\${XDG_CONFIG_HOME:-\$HOME/.config}/autostart\" 2>/dev/null | sort"
-    capture "Installed themes (global)" sh -c \
+    capture "Installed look-and-feel themes (global)" sh -c \
         "ls -1 /usr/share/plasma/look-and-feel 2>/dev/null | sort"
 } | write 90-desktop-kde.txt
 
