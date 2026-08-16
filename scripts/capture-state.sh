@@ -107,8 +107,11 @@ kde_config_dump() {
         [ -r "$base/$f" ] || continue
         printf '### %s\n' "$f"
         # Masks values that move on their own rather than when a setting
-        # changes — a Dolphin view timestamp updates just from browsing.
-        sed -E 's/^(ViewPropsTimestamp)=.*/\1=<timestamp>/' "$base/$f" |
+        # changes: a Dolphin view timestamp updates just from browsing, and
+        # Plasma stamps the time into gtkrc every time it rewrites it — which
+        # is on every login, so it would diff daily while saying nothing.
+        sed -E 's/^(ViewPropsTimestamp)=.*/\1=<timestamp>/;
+                s/^(# created by KDE Plasma), .*/\1, <timestamp>/' "$base/$f" |
             grep -v '^[[:space:]]*$'
         printf '\n'
     done
@@ -261,7 +264,9 @@ printf 'Capturing state to %s/ (redaction: %s)\n' "$OUT_DIR" \
         "df -h --output=source,fstype,size,target -x tmpfs -x devtmpfs -x cifs -x squashfs"
     show "fstab" /etc/fstab
     capture "Btrfs subvolumes" btrfs subvolume list /
-    capture "Swap" swapon --show
+    # Columns chosen to exclude USED: swap in use is runtime state and moves
+    # constantly. What matters for desired state is what swap exists.
+    capture "Swap" swapon --show=NAME,TYPE,SIZE,PRIO
 } | write 40-storage.txt
 
 # --------------------------------------------------------------------------
@@ -521,13 +526,46 @@ printf 'Capturing state to %s/ (redaction: %s)\n' "$OUT_DIR" \
     printf '\n'
 
     capture "Gaming-related packages" sh -c \
-        "rpm -qa --qf '%{NAME}\n' | grep -Ei 'steam|lutris|heroic|wine|proton|gamemode|gamescope|mangohud|vkbasalt|bottles' | sort"
-    capture "Steam library paths" sh -c \
-        "find \"\$HOME\" -maxdepth 4 -name libraryfolders.vdf 2>/dev/null | sort"
-    capture "Compatibility tools (Steam)" sh -c \
-        "ls -1 \"\$HOME/.steam/root/compatibilitytools.d\" 2>/dev/null | sort"
-    capture "Proton versions in Steam apps" sh -c \
-        "ls -1d \"\$HOME\"/.steam/steam/steamapps/common/Proton* 2>/dev/null | sort"
+        "rpm -qa --qf '%{NAME}\n' | grep -Ei 'steam|lutris|heroic|wine|proton|gamemode|gamescope|mangohud|vkbasalt|bottles|umu' | sort"
+
+    # --------------------------------------------------------------------
+    # The category that costs an afternoon when it goes missing.
+    #
+    # Proton builds and Lutris runners are unpacked tarballs. No package
+    # manager knows they exist, nothing updates them, and a rebuilt machine
+    # loses them silently — the game simply stops working and the reason
+    # isn't in any package list. roles/gaming pins the Proton build for
+    # exactly this reason; everything else here is unmanaged and will not
+    # come back on its own.
+    # --------------------------------------------------------------------
+    capture "Proton builds (Steam compatibilitytools.d)" sh -c \
+        "ls -1 \"\$HOME/.steam/root/compatibilitytools.d\" 2>/dev/null | sort || echo '(none)'"
+    capture "Lutris runners (unpacked, not package-managed)" bash -c '
+        base="$HOME/.local/share/lutris/runners"
+        if [ ! -d "$base" ]; then echo "(no Lutris runners directory)"; exit 0; fi
+        found=0
+        for r in "$base"/*/; do
+            [ -d "$r" ] || continue
+            for v in "$r"*/; do
+                [ -d "$v" ] || continue
+                printf "%-12s %s\n" "$(basename "$r")" "$(basename "$v")"
+                found=1
+            done
+        done
+        [ "$found" -eq 1 ] || echo "(no runner versions installed)"'
+    capture "Proton versions bundled with Steam apps" sh -c \
+        "ls -1d \"\$HOME\"/.steam/steam/steamapps/common/Proton* 2>/dev/null | xargs -r -n1 basename | sort || echo '(none)'"
+
+    # Surfaces a library Steam still believes in but which has been renamed,
+    # moved or unplugged — a dangling entry looks like "my games vanished"
+    # and says nothing about why.
+    capture "Steam library folders (and whether they still exist)" bash -c '
+        v="$HOME/.local/share/Steam/config/libraryfolders.vdf"
+        [ -r "$v" ] || v="$HOME/.steam/steam/config/libraryfolders.vdf"
+        if [ ! -r "$v" ]; then echo "(no libraryfolders.vdf)"; exit 0; fi
+        sed -n "s/.*\"path\"[^\"]*\"\(.*\)\"/\1/p" "$v" | while read -r p; do
+            [ -d "$p" ] && printf "OK       %s\n" "$p" || printf "MISSING  %s\n" "$p"
+        done'
     capture "Game controllers" sh -c \
         "ls -1 /dev/input/by-id 2>/dev/null | grep -i -E 'joystick|gamepad|event-joystick' | sort"
     capture "gamemode configuration" sh -c \

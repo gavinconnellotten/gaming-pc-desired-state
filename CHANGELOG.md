@@ -106,6 +106,26 @@ into this repo yet.
     worth reading again.
 - **Baseline recaptured** post-reboot, replacing the pre-reboot one.
 
+## 2026-08-16
+
+- **Lutris runners are now captured.** Lutris keeps its own Wine builds in
+  `~/.local/share/lutris/runners/` — `wine-ge-8-26-x86_64` today — which is the
+  same unpacked-tarball category as Proton builds in `compatibilitytools.d`:
+  no package manager knows they exist, and a rebuild loses them silently. The
+  gaming section now groups both under one heading that says so.
+- **`95-gaming-stack.txt` also reports Steam library folders and whether they
+  still exist.** Prompted by a real case: renaming a library directory left
+  Steam pointing at a path that was gone, which presents as "my games vanished"
+  and explains nothing. A `MISSING` line makes it obvious.
+- **`GE-Proton11-5-x86_64` deliberately not pinned** in `roles/gaming`. It was
+  fetched automatically by `umu` to match a Wine prefix, not chosen — pinning
+  it would codify a side effect. `GE-Proton11-3` stays pinned because it was a
+  decision. umu re-fetches what a prefix needs, so a rebuild recovers it.
+- **Two more capture noise sources removed**, both found by reading a diff
+  rather than the script: Plasma stamps `# created by KDE Plasma, <date>` into
+  `gtkrc` on every login, and `swapon --show` reports swap currently in use.
+  Both diffed constantly while saying nothing. Masked and dropped respectively.
+
 ## 2026-08-15 (KDE capture)
 
 - **Plasma settings are now captured, and deliberately not managed.**

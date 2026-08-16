@@ -41,9 +41,16 @@ It covers RPMs only. Two other things drift and are recorded elsewhere:
 - **Flatpaks and Snaps** — `60-flatpaks-snaps.txt`. Watch the Snap publisher
   column; that's how a third-party `claudeai-desktop` snap was found sitting
   alongside the packaged Claude Desktop this repo actually manages.
-- **Proton builds** — `95-gaming-stack.txt`. ProtonPlus unpacks these into
-  `~/.steam/root/compatibilitytools.d/` as plain directories, so no package
-  manager knows they exist and a rebuild silently loses them.
+- **Proton builds and Lutris runners** — `95-gaming-stack.txt`. Both are
+  unpacked tarballs: Proton in `~/.steam/root/compatibilitytools.d/`, Lutris's
+  own Wine builds in `~/.local/share/lutris/runners/`. No package manager knows
+  either exists, so a rebuild loses them silently — the game just stops working
+  and the reason appears in no package list. `roles/gaming` pins the Proton
+  build for that reason; everything else in that section is unmanaged.
+
+That file also reports **Steam library folders and whether they still exist**.
+A library Steam still believes in but which has been renamed or unplugged
+presents as "my games vanished" and explains nothing about why.
 
 ## Reading `90-desktop-kde.txt`
 
