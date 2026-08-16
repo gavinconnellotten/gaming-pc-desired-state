@@ -399,8 +399,11 @@ printf 'Capturing state to %s/ (redaction: %s)\n' "$OUT_DIR" \
     post_iso_packages
     printf '\n'
 
+    # tr -s ' ': dnf pads its columns to the widest command line, so a single
+    # new transaction re-spaces every earlier row and a one-line change diffs
+    # as the whole table. Same trap as the systemctl captures.
     capture "Transaction history" sh -c \
-        "dnf history list 2>/dev/null || echo '(dnf history unavailable)'"
+        "dnf history list 2>/dev/null | tr -s ' ' || echo '(dnf history unavailable)'"
 } | write 57-post-iso-additions.txt
 
 {
@@ -469,6 +472,27 @@ printf 'Capturing state to %s/ (redaction: %s)\n' "$OUT_DIR" \
     capture "Plasma version" plasmashell --version
     capture "KDE Frameworks version" kf6-config --version
     capture "Display configuration" kscreen-doctor -o
+
+    # A connected display offering only one or two modes has failed to hand
+    # over its EDID. That is the signature of the DisplayPort wake fault on
+    # 2026-08-16: the monitor came back from power-save without an EDID, KWin
+    # had nothing to match its saved profile against, and it fell through to a
+    # junk 640x480 profile.
+    #
+    # Mode count is the signal, NOT the sysfs edid file — that reads as 0 bytes
+    # to an unprivileged user even on a perfectly healthy output, which is a
+    # good way to chase the wrong thing for a while.
+    capture "Display connector health (few modes means no EDID)" bash -c '
+        shopt -s nullglob
+        found=0
+        for c in /sys/class/drm/card*-*/; do
+            [ "$(cat "$c/status" 2>/dev/null)" = connected ] || continue
+            n=$(wc -l < "$c/modes" 2>/dev/null || echo 0)
+            [ "$n" -le 2 ] && flag="SUSPECT - no EDID delivered?" || flag="ok"
+            printf "%-24s %3s modes  %s\n" "$(basename "$c")" "$n" "$flag"
+            found=1
+        done
+        [ "$found" -eq 1 ] || echo "(no connected display connectors)"'
 
     printf '## What is captured here, and what is not\n\n'
     printf 'The settings below are an allowlist. Deliberately NOT captured,\n'

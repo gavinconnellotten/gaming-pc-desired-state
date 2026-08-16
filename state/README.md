@@ -69,6 +69,23 @@ committed:
 | `kwinoutputconfig.json` | Monitor EDID hashes and identifiers |
 | `kactivitymanagerd-statsrc` | Usage statistics — what was opened, and when |
 
+**If a display misbehaves, read `~/.config/kwinoutputconfig.json` directly.**
+It is excluded from this capture on purpose and that should stay true — but it
+is also exactly where display bugs live, so its absence here is not a reason to
+overlook it.
+
+KWin stores one profile per output, **keyed by the monitor's EDID**. On
+2026-08-16 a DisplayPort monitor woke from power-save without delivering its
+EDID, so KWin could not match its real profile and fell through to a junk
+640x480 one it had saved earlier. The bad profile then persisted in that file
+and the fault recurred at random — whenever the EDID read lost the race.
+
+Two things to check there: duplicate profiles for one connector (the extra one
+is the fallback that bites), and `allowDdcCi`, which lets PowerDevil probe
+monitors over I2C at wake time and can be what breaks the EDID read. The
+capture's own "Display connector health" section flags the symptom: a connected
+output offering only one or two modes has not delivered its EDID.
+
 Also skipped as generated state with no settings in it: `session/`,
 `plasmanotifyrc`, `kconf_updaterc`, `Trolltech.conf`, `QtProject.conf`.
 

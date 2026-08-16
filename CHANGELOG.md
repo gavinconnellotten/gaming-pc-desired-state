@@ -106,6 +106,32 @@ into this repo yet.
     worth reading again.
 - **Baseline recaptured** post-reboot, replacing the pre-reboot one.
 
+## 2026-08-16 (display wake fault)
+
+- **A monitor kept returning from power-save at 640x480.** Diagnosed from the
+  machine: DisplayPort fully de-enumerates when a display sleeps, and on wake
+  PowerDevil immediately probes the monitors over I2C for DDC/CI brightness
+  control (`libddcutil.so.5`). That collides with the link retraining —
+  `org_kde_powerdevil: /dev/i2c-3, Checking EDID failed after 3 tries`.
+  - KWin stores display profiles **keyed by EDID**. With no EDID it could not
+    match DP-2's real profile and fell through to a junk 640x480 one saved
+    earlier. That bad profile then lived permanently in
+    `~/.config/kwinoutputconfig.json`, so the fault recurred whenever the EDID
+    read lost the race — which is why it was intermittent.
+  - Fixed by recovering the output, deleting the bad profile, and setting
+    `allowDdcCi: false` on both outputs. Cost: no software brightness control
+    for these monitors, which have their own buttons.
+- **New display health check** in `90-desktop-kde.txt`. A connected output
+  offering only one or two modes has not delivered its EDID, which is the whole
+  fault in one line. Mode count is the reliable signal — the sysfs `edid` file
+  reads as 0 bytes to an unprivileged user even on a healthy output, which is a
+  good way to chase the wrong thing for a while.
+- **`state/README.md` now points at `kwinoutputconfig.json` for display bugs.**
+  It stays excluded from capture — it holds monitor EDID hashes — but its
+  absence from `state/` shouldn't mean it gets overlooked when a display
+  misbehaves. Duplicate profiles for one connector, and `allowDdcCi`, are the
+  two things to look at.
+
 ## 2026-08-16
 
 - **Lutris runners are now captured.** Lutris keeps its own Wine builds in
