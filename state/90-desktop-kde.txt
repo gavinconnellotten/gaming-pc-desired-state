@@ -291,6 +291,8 @@ Places Icons Auto-resize=false
 Places Icons Static Size=22
 [MainWindow]
 MenuBar=Disabled
+[Notification Messages]
+warnAboutRisksBeforeActingAsAdmin=false
 
 ### konsolerc
 [General]
@@ -618,11 +620,11 @@ org.kde.breezedark.desktop
 ## Toolkit and XDG integration
 
 ### gtkrc
-# created by KDE Plasma, Sat Aug 15 12:23:48 2026
+# created by KDE Plasma, <timestamp>
 #
 
 ### gtkrc-2.0
-# created by KDE Plasma, Sat Aug 15 12:23:48 2026
+# created by KDE Plasma, <timestamp>
 #
 gtk-alternative-button-order = 1
 
@@ -756,6 +758,7 @@ kwinrc
 kwinrulesrc
 libaccounts-glib
 librewolf
+menus
 mimeapps.list
 plasma-localerc
 plasmanotifyrc
@@ -773,6 +776,7 @@ Signal
 starship.toml
 systemmonitorrc
 toolbox
+trashrc
 Trolltech.conf
 updatesystem-declined
 user-dirs.dirs

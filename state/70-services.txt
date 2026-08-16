@@ -78,6 +78,7 @@ unbound-anchor.timer enabled enabled
 upower.service enabled enabled
 uresourced.service enabled enabled
 var-lib-snapd-snap-core22-2411.mount enabled disabled
+var-lib-snapd-snap-core22-2437.mount enabled disabled
 var-lib-snapd-snap-snapd-27591.mount enabled disabled
 
 ## Failed system units

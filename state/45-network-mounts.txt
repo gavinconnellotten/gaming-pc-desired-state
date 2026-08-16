@@ -45,6 +45,7 @@ SOURCE TARGET FSTYPE OPTIONS
 ● usr-share.mount not-found inactive dead usr-share.mount
 ● var-cache.mount not-found inactive dead var-cache.mount
  var-lib-snapd-snap-core22-2411.mount loaded active mounted Mount unit for core22, revision 2411
+ var-lib-snapd-snap-core22-2437.mount loaded active mounted Mount unit for core22, revision 2437
  var-lib-snapd-snap-snapd-27591.mount loaded active mounted Mount unit for snapd, revision 27591
 ● var.mount not-found inactive dead var.mount
 

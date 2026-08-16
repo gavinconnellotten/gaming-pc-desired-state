@@ -55,7 +55,7 @@ ERROR: can't perform the search: Operation not permitted
 
 ## Swap
 
-NAME           TYPE       SIZE USED PRIO
-/dev/zram0     partition    8G   0B  100
-/dev/nvme0n1p4 partition 17.1G   0B   -1
+NAME           TYPE       SIZE PRIO
+/dev/zram0     partition    8G  100
+/dev/nvme0n1p4 partition 17.1G   -1
 

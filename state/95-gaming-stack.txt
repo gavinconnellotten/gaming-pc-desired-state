@@ -31,24 +31,32 @@ protonplus
 steam
 steam-arch-transition
 steam-devices
+umu-launcher
 vkBasalt
 vkBasalt
 winehq-staging
 wine-staging
 winetricks
 
-## Steam library paths
-
-(no output)
-
-## Compatibility tools (Steam)
+## Proton builds (Steam compatibilitytools.d)
 
 GE-Proton11-3
+GE-Proton11-5-x86_64
 Proton-GE Latest
 
-## Proton versions in Steam apps
+## Lutris runners (unpacked, not package-managed)
+
+retroarch    info
+wine         wine-ge-8-26-x86_64
+
+## Proton versions bundled with Steam apps
 
 (no output)
+
+## Steam library folders (and whether they still exist)
+
+OK       /home/<user>/.local/share/Steam
+OK       /run/media/<user>/08167B30167B1DBE/SteamLibrary
 
 ## Game controllers
 
