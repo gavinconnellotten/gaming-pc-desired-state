@@ -36,3 +36,20 @@ apply, so it's better done knowingly.
 
 See `defaults/main.yml` — repo URL, package name, and the extra dependency
 list are all overridable if upstream naming changes.
+
+## Why `state: latest` for the app but not its dependencies
+
+`claude_desktop_state` defaults to `latest`. Claude Desktop comes from the
+community repo and **nothing else on the machine updates it** — with `present`
+it is installed once and then drifts, which is exactly what happened: the
+app's own `--doctor` was reporting `Version drift: official pool has 1.32885.1,
+this install packages 1.30096.1` on every run.
+
+The trade-off is that running the playbook can now upgrade the app. Set
+`claude_desktop_state: present` to pin it and upgrade by hand instead.
+
+`nodejs`, `qemu-system-x86` and `edk2-ovmf` are deliberately installed by a
+**separate task at `state: present`**. They're Nobara's packages, and
+`state: latest` on them would force upgrades on Ansible's schedule rather than
+`nobara-sync`'s — the one thing this repo's conventions rule out. Keeping them
+in the same task as the app would have made that impossible to express.

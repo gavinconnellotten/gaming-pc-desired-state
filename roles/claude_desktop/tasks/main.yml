@@ -6,11 +6,25 @@
     mode: "0644"
     force: true
 
-- name: Install Claude Desktop and its MCP/Cowork dependencies
+# Split from the dependencies below deliberately. Claude Desktop comes from
+# the community repo and nothing else updates it, so tracking latest here is
+# the only way it ever moves — the --doctor output was reporting version drift
+# against the official pool for weeks.
+#
+# The dependencies are NOT included in this task, because state: latest on them
+# would force-upgrade packages Nobara also manages, on Ansible's schedule
+# rather than nobara-sync's. That is the one thing this repo's conventions say
+# not to do.
+- name: Install Claude Desktop
   ansible.builtin.dnf:
-    name: "{{ [claude_desktop_package] + claude_desktop_extra_packages }}"
-    state: present
+    name: "{{ claude_desktop_package }}"
+    state: "{{ claude_desktop_state }}"
   register: claude_desktop_install
+
+- name: Install Claude Desktop's MCP and Cowork dependencies
+  ansible.builtin.dnf:
+    name: "{{ claude_desktop_extra_packages }}"
+    state: present
 
 # Diagnostics must NOT inherit the play's become: true. --doctor checks
 # things that are per-user — KVM device access, group membership, config

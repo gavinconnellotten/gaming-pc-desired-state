@@ -5,6 +5,17 @@ into this repo yet.
 
 ## 2026-08-21
 
+- **`claude_desktop` now tracks `latest` for the app itself.** With
+  `state: present` it was installed once and then drifted — the app's own
+  `--doctor` had been reporting `official pool has 1.32885.1, this install
+  packages 1.30096.1` on every run, and nothing else on the machine updates
+  that repo.
+  - The install task was **split in two**. `nodejs`, `qemu-system-x86` and
+    `edk2-ovmf` stay at `state: present` in their own task, because they are
+    Nobara's packages and `latest` on them would force upgrades on Ansible's
+    schedule instead of `nobara-sync`'s. They had been in the same dnf call as
+    the app, which made that distinction impossible to express.
+  - Tunable via `claude_desktop_state` for anyone who would rather pin it.
 - **Full playbook run against the machine: `ok=44 changed=3 failed=0`.**
   Proton VPN and Proton Mail installed as intended. The third change was a bug.
 - **`smb_mounts` was reporting `changed` forever on "Create mountpoints".**

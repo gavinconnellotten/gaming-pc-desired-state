@@ -5,6 +5,14 @@ claude_desktop_repo_url: https://pkg.claude-desktop-debian.dev/rpm/claude-deskto
 claude_desktop_repo_file: /etc/yum.repos.d/claude-desktop-unofficial.repo
 claude_desktop_package: claude-desktop-unofficial
 
+# `latest`, not `present`: this package comes from the community repo and
+# nothing else on the machine updates it, so `present` means it is installed
+# once and then drifts forever. The trade-off is that running the playbook can
+# upgrade the app — set to `present` if you would rather pin it and upgrade by
+# hand. Note this applies ONLY to Claude Desktop; the dependencies below stay
+# at `present` so Nobara keeps ownership of them.
+claude_desktop_state: latest
+
 # nodejs: required for MCP servers run from Claude Desktop.
 # qemu-system-x86 + edk2-ovmf: KVM/QEMU/OVMF stack required for Claude's
 # "Cowork" sandboxed execution mode.
