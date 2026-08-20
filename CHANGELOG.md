@@ -3,8 +3,178 @@
 Dated log of what's been done to `gaming-pc`, and whether it's been codified
 into this repo yet.
 
-## 2026-08-15
+## 2026-08-20
+- **Power, lock and standby configured, and codified as `roles/power_management`.**
+  Screens dim at 9 min, blank and lock at 10 min, machine suspends to RAM after
+  1 hour, power button sleeps rather than shuts down, password required on
+  resume. Verified: `suspend entry (deep)` -> wake on keypress -> `suspend exit`
+  one second later.
+- **USB wake took most of the day, and the reason is worth keeping.** The wake
+  signal crosses five levels — device, hub, root hub, xHCI controller, PCI
+  bridge — and every one must be armed. Arming the device and its hub *looks*
+  complete, because both report `enabled`, and the machine still will not wake:
+  the signal dies at the root hub above them.
+  - Also `ACTION=="add|change"`, not `add` alone. `udevadm trigger` emits a
+    *change* event, so the first version of the rule silently did nothing on
+    reload and would only have taken effect on the next replug.
+  - **The actual blocker was firmware**: MSI BIOS -> Wake Up Event Setup ->
+    `Resume By USB Device`, which was Disabled. With it off, every sysfs level
+    reads `enabled` and nothing wakes. The role cannot set it, so it is
+    documented as a manual step alongside recreating the SMB credentials.
+  - **`ErP Ready` was NOT the cause** — already Disabled. It was suspected
+    because the keyboard LEDs go dark in S3, which turned out to be a
+    consequence of `Resume By USB Device` being off. Recorded so nobody
+    re-tests it.
+- **PowerDevil's action enum established by measurement**: `1` = Sleep,
+  `8` = Shut down. Set each in System Settings, read back what was written. An
+  earlier guess that `8` was "Lock screen" was wrong, and `AutoSuspendAction`
+  is pinned explicitly rather than left to an upstream default, because getting
+  it wrong means a machine that shuts down after an hour idle.
+- **A monitor was intermittently dropping its DisplayPort link** — DP-2
+  disconnecting and re-training every 2-4 minutes. Fixed by reseating the
+  cable, almost certainly disturbed while swapping cables during the BIOS hunt.
+  A fresh 640x480 profile appeared for DP-3 in `kwinoutputconfig.json` during
+  that period, which suggests the EDID-loss fault recurs whenever a link is
+  disturbed rather than being a one-off.
+- **Locked out of the BIOS for most of the day.** POST produced no picture on
+  either DisplayPort monitor, the GPU's HDMI, or an old TV. The firmware *was*
+  outputting video the whole time — `simpledrm` gets a framebuffer and BGRT
+  reports `status = 1` at 2560x1440 — so the monitors simply weren't syncing to
+  it. Eventually displayed on a DisplayPort panel with no clear reason why that
+  attempt differed. `Fast Boot` could not be found in the menus. Unresolved;
+  `systemctl reboot --firmware-setup` at least removes the key-timing problem.
+- **Three wrong inferences worth recording**, all from reading indirect signals
+  where a direct test would have been faster: ErP Ready (LEDs going dark),
+  "root hub lost power" (taken as evidence the *other* controller kept power),
+  and the Lutris runner (assumed wine-ge-8-26 would launch DOOM when umu was
+  already selecting GE-Proton11-5 from the prefix's own version file).
 
+## 2026-08-16 (display wake fault)
+- **A monitor kept returning from power-save at 640x480.** Diagnosed from the
+  machine: DisplayPort fully de-enumerates when a display sleeps, and on wake
+  PowerDevil immediately probes the monitors over I2C for DDC/CI brightness
+  control (`libddcutil.so.5`). That collides with the link retraining —
+  `org_kde_powerdevil: /dev/i2c-3, Checking EDID failed after 3 tries`.
+  - KWin stores display profiles **keyed by EDID**. With no EDID it could not
+    match DP-2's real profile and fell through to a junk 640x480 one saved
+    earlier. That bad profile then lived permanently in
+    `~/.config/kwinoutputconfig.json`, so the fault recurred whenever the EDID
+    read lost the race — which is why it was intermittent.
+  - Fixed by recovering the output, deleting the bad profile, and setting
+    `allowDdcCi: false` on both outputs. Cost: no software brightness control
+    for these monitors, which have their own buttons.
+- **New display health check** in `90-desktop-kde.txt`. A connected output
+  offering only one or two modes has not delivered its EDID, which is the whole
+  fault in one line. Mode count is the reliable signal — the sysfs `edid` file
+  reads as 0 bytes to an unprivileged user even on a healthy output, which is a
+  good way to chase the wrong thing for a while.
+- **`state/README.md` now points at `kwinoutputconfig.json` for display bugs.**
+  It stays excluded from capture — it holds monitor EDID hashes — but its
+  absence from `state/` shouldn't mean it gets overlooked when a display
+  misbehaves. Duplicate profiles for one connector, and `allowDdcCi`, are the
+  two things to look at.
+
+## 2026-08-16
+- **Lutris runners are now captured.** Lutris keeps its own Wine builds in
+  `~/.local/share/lutris/runners/` — `wine-ge-8-26-x86_64` today — which is the
+  same unpacked-tarball category as Proton builds in `compatibilitytools.d`:
+  no package manager knows they exist, and a rebuild loses them silently. The
+  gaming section now groups both under one heading that says so.
+- **`95-gaming-stack.txt` also reports Steam library folders and whether they
+  still exist.** Prompted by a real case: renaming a library directory left
+  Steam pointing at a path that was gone, which presents as "my games vanished"
+  and explains nothing. A `MISSING` line makes it obvious.
+- **`GE-Proton11-5-x86_64` deliberately not pinned** in `roles/gaming`. It was
+  fetched automatically by `umu` to match a Wine prefix, not chosen — pinning
+  it would codify a side effect. `GE-Proton11-3` stays pinned because it was a
+  decision. umu re-fetches what a prefix needs, so a rebuild recovers it.
+- **Two more capture noise sources removed**, both found by reading a diff
+  rather than the script: Plasma stamps `# created by KDE Plasma, <date>` into
+  `gtkrc` on every login, and `swapon --show` reports swap currently in use.
+  Both diffed constantly while saying nothing. Masked and dropped respectively.
+
+## 2026-08-15 (KDE capture)
+- **Plasma settings are now captured, and deliberately not managed.**
+  `state/90-desktop-kde.txt` previously listed config *filenames*; it now dumps
+  an allowlist of the settings files themselves, plus the distro defaults they
+  cascade on top of.
+  - **No role applies any of it.** The desktop is still being set up, so
+    codifying it now would freeze a half-finished configuration. The capture
+    exists so that when it is finished, "what have I actually customised?"
+    comes from the machine rather than from memory.
+  - **Why there's little to codify yet**: the machine is close to stock Nobara
+    Plasma. `kcminputrc` doesn't exist, `kwinrc` holds a generated UUID and the
+    default tiling layout, `kdeglobals` `[General]` is one opaque
+    `ColorSchemeHash`, and the 251 lines of `kglobalshortcutsrc` are Plasma's
+    own defaults.
+  - The clear exception is `powerdevilrc` — dim at 600s, display off at 900s,
+    120s when locked, `AutoSuspendAction=0`. **Confirmed deliberate by the
+    owner**, so recorded as intentional rather than as drift to be tidied.
+- **Three exclusions, chosen before writing anything that dumps file
+  contents**, since this output is committed to a public repo:
+  `~/.config/kdeconnect/` holds a device-pairing **private key** and
+  certificate; `kwinoutputconfig.json` holds monitor EDID hashes and
+  identifiers; `kactivitymanagerd-statsrc` holds usage statistics. A naive
+  "capture my dotfiles" sweep would have published the first of those.
+  Verified after the fact: no key material, EDID field, or username in the
+  output.
+- **The panel is inventoried, not recorded.** `plasma-org.kde.plasma.desktop-appletsrc`
+  carries per-screen geometry and applet ids that mean nothing on a rebuilt
+  machine, so only the widget list is captured.
+- **Noted for whenever the role does get built**: use `kwriteconfig6`, not file
+  copying. Plasma rewrites these files while running, so copying whole files
+  fights it for ownership and clobbers anything undeclared.
+
+## 2026-08-15 (later)
+- **Answered "what did I install to fix Steam?" from the machine rather than
+  memory.** `dnf` transaction 1 is the package set baked into the ISO, stamped
+  2026-04-24 when Nobara built the image; everything from transaction 2
+  (2026-08-08) happened here. That boundary yields an exact list — 32
+  explicitly-installed packages.
+  - The likely fix was transaction 7:
+    `dnf install -y rocm-meta nobara-resolve-runtime zlib libxcrypt-compat
+    python3.11 python3.11-libs alsa-plugins-pulseaudio`. `libxcrypt-compat`
+    provides `libcrypt.so.1`, which Fedora dropped and Steam still links
+    against — the classic "installs fine, won't launch". Reconstructed from
+    evidence, so treat it as most-likely rather than certain; the Proton-GE
+    install on 08-10 and the NVIDIA i686 libraries on 08-12 are also
+    candidates.
+- **`capture-state.sh` learned to record drift from the image.**
+  - New `state/57-post-iso-additions.txt` computes the post-ISO delta from dnf
+    history. This is the file to open when asking what a rebuild would lose.
+  - Snaps were a complete blind spot and are now captured, in
+    `state/60-flatpaks-snaps.txt` (renamed from `60-flatpaks.txt`).
+- **Adding snap capture immediately found something.** A `claudeai-desktop`
+  snap, publisher "Chimeremeze Prevail Ejimadu (prevailexcel)", an unofficial
+  third-party Electron wrapper — unrelated to the `claude-desktop-unofficial`
+  RPM this repo manages. Installed 08-12, two days before the RPM, so probably
+  an abandoned first attempt. Not running. Flagged for removal; not touched.
+- **New `roles/gaming`**, following the principle *manage the delta, not the
+  distribution*:
+  - Installs the runtime dependencies and the codec set (verbatim from
+    transaction 12, `.i686` architectures included — the 32-bit halves are
+    what older Proton builds and 32-bit games need).
+  - Deliberately does **not** manage Steam, Lutris, Heroic, gamescope,
+    gamemode, MangoHud or OBS. They ship with the image and Nobara updates
+    them; managing them here would fight `nobara-sync`.
+  - Omits `rocm-meta` from that install line — AMD's compute stack on an
+    NVIDIA machine, along for the ride because the command was run wholesale.
+  - Installs Proton-GE pinned to `GE-Proton11-3`, checksum-verified against
+    the release's own `.sha512sum` so pinning a version doesn't also mean
+    pasting a hash nobody re-verifies.
+  - **Refuses to run as root.** `compatibilitytools.d` is under `$HOME`, so
+    under `sudo` the build lands in `/root` where Steam never looks — and the
+    run would report success. Same class of bug as `claude_desktop`'s
+    `--doctor` gotcha. It also resolves the home directory with `getent`
+    rather than `ansible_env.HOME`, which is already root's once the play's
+    `become` is in effect.
+  - Reports Proton builds it doesn't manage. `Proton-GE Latest`, installed via
+    ProtonPlus, is flagged as one a rebuild won't restore.
+  - Verified live as the desktop user: correct home resolution, download and
+    unpack skipped for the already-present pinned build, idempotent on a second
+    run, and clean under `--check`.
+
+## 2026-08-15
 - **SMB shares fixed.** The two CIFS mounts had been failing since they were
   written. Diagnosed on the machine rather than from description, which changed
   the answer completely.
@@ -106,137 +276,7 @@ into this repo yet.
     worth reading again.
 - **Baseline recaptured** post-reboot, replacing the pre-reboot one.
 
-## 2026-08-16 (display wake fault)
-
-- **A monitor kept returning from power-save at 640x480.** Diagnosed from the
-  machine: DisplayPort fully de-enumerates when a display sleeps, and on wake
-  PowerDevil immediately probes the monitors over I2C for DDC/CI brightness
-  control (`libddcutil.so.5`). That collides with the link retraining —
-  `org_kde_powerdevil: /dev/i2c-3, Checking EDID failed after 3 tries`.
-  - KWin stores display profiles **keyed by EDID**. With no EDID it could not
-    match DP-2's real profile and fell through to a junk 640x480 one saved
-    earlier. That bad profile then lived permanently in
-    `~/.config/kwinoutputconfig.json`, so the fault recurred whenever the EDID
-    read lost the race — which is why it was intermittent.
-  - Fixed by recovering the output, deleting the bad profile, and setting
-    `allowDdcCi: false` on both outputs. Cost: no software brightness control
-    for these monitors, which have their own buttons.
-- **New display health check** in `90-desktop-kde.txt`. A connected output
-  offering only one or two modes has not delivered its EDID, which is the whole
-  fault in one line. Mode count is the reliable signal — the sysfs `edid` file
-  reads as 0 bytes to an unprivileged user even on a healthy output, which is a
-  good way to chase the wrong thing for a while.
-- **`state/README.md` now points at `kwinoutputconfig.json` for display bugs.**
-  It stays excluded from capture — it holds monitor EDID hashes — but its
-  absence from `state/` shouldn't mean it gets overlooked when a display
-  misbehaves. Duplicate profiles for one connector, and `allowDdcCi`, are the
-  two things to look at.
-
-## 2026-08-16
-
-- **Lutris runners are now captured.** Lutris keeps its own Wine builds in
-  `~/.local/share/lutris/runners/` — `wine-ge-8-26-x86_64` today — which is the
-  same unpacked-tarball category as Proton builds in `compatibilitytools.d`:
-  no package manager knows they exist, and a rebuild loses them silently. The
-  gaming section now groups both under one heading that says so.
-- **`95-gaming-stack.txt` also reports Steam library folders and whether they
-  still exist.** Prompted by a real case: renaming a library directory left
-  Steam pointing at a path that was gone, which presents as "my games vanished"
-  and explains nothing. A `MISSING` line makes it obvious.
-- **`GE-Proton11-5-x86_64` deliberately not pinned** in `roles/gaming`. It was
-  fetched automatically by `umu` to match a Wine prefix, not chosen — pinning
-  it would codify a side effect. `GE-Proton11-3` stays pinned because it was a
-  decision. umu re-fetches what a prefix needs, so a rebuild recovers it.
-- **Two more capture noise sources removed**, both found by reading a diff
-  rather than the script: Plasma stamps `# created by KDE Plasma, <date>` into
-  `gtkrc` on every login, and `swapon --show` reports swap currently in use.
-  Both diffed constantly while saying nothing. Masked and dropped respectively.
-
-## 2026-08-15 (KDE capture)
-
-- **Plasma settings are now captured, and deliberately not managed.**
-  `state/90-desktop-kde.txt` previously listed config *filenames*; it now dumps
-  an allowlist of the settings files themselves, plus the distro defaults they
-  cascade on top of.
-  - **No role applies any of it.** The desktop is still being set up, so
-    codifying it now would freeze a half-finished configuration. The capture
-    exists so that when it is finished, "what have I actually customised?"
-    comes from the machine rather than from memory.
-  - **Why there's little to codify yet**: the machine is close to stock Nobara
-    Plasma. `kcminputrc` doesn't exist, `kwinrc` holds a generated UUID and the
-    default tiling layout, `kdeglobals` `[General]` is one opaque
-    `ColorSchemeHash`, and the 251 lines of `kglobalshortcutsrc` are Plasma's
-    own defaults.
-  - The clear exception is `powerdevilrc` — dim at 600s, display off at 900s,
-    120s when locked, `AutoSuspendAction=0`. **Confirmed deliberate by the
-    owner**, so recorded as intentional rather than as drift to be tidied.
-- **Three exclusions, chosen before writing anything that dumps file
-  contents**, since this output is committed to a public repo:
-  `~/.config/kdeconnect/` holds a device-pairing **private key** and
-  certificate; `kwinoutputconfig.json` holds monitor EDID hashes and
-  identifiers; `kactivitymanagerd-statsrc` holds usage statistics. A naive
-  "capture my dotfiles" sweep would have published the first of those.
-  Verified after the fact: no key material, EDID field, or username in the
-  output.
-- **The panel is inventoried, not recorded.** `plasma-org.kde.plasma.desktop-appletsrc`
-  carries per-screen geometry and applet ids that mean nothing on a rebuilt
-  machine, so only the widget list is captured.
-- **Noted for whenever the role does get built**: use `kwriteconfig6`, not file
-  copying. Plasma rewrites these files while running, so copying whole files
-  fights it for ownership and clobbers anything undeclared.
-
-## 2026-08-15 (later)
-
-- **Answered "what did I install to fix Steam?" from the machine rather than
-  memory.** `dnf` transaction 1 is the package set baked into the ISO, stamped
-  2026-04-24 when Nobara built the image; everything from transaction 2
-  (2026-08-08) happened here. That boundary yields an exact list — 32
-  explicitly-installed packages.
-  - The likely fix was transaction 7:
-    `dnf install -y rocm-meta nobara-resolve-runtime zlib libxcrypt-compat
-    python3.11 python3.11-libs alsa-plugins-pulseaudio`. `libxcrypt-compat`
-    provides `libcrypt.so.1`, which Fedora dropped and Steam still links
-    against — the classic "installs fine, won't launch". Reconstructed from
-    evidence, so treat it as most-likely rather than certain; the Proton-GE
-    install on 08-10 and the NVIDIA i686 libraries on 08-12 are also
-    candidates.
-- **`capture-state.sh` learned to record drift from the image.**
-  - New `state/57-post-iso-additions.txt` computes the post-ISO delta from dnf
-    history. This is the file to open when asking what a rebuild would lose.
-  - Snaps were a complete blind spot and are now captured, in
-    `state/60-flatpaks-snaps.txt` (renamed from `60-flatpaks.txt`).
-- **Adding snap capture immediately found something.** A `claudeai-desktop`
-  snap, publisher "Chimeremeze Prevail Ejimadu (prevailexcel)", an unofficial
-  third-party Electron wrapper — unrelated to the `claude-desktop-unofficial`
-  RPM this repo manages. Installed 08-12, two days before the RPM, so probably
-  an abandoned first attempt. Not running. Flagged for removal; not touched.
-- **New `roles/gaming`**, following the principle *manage the delta, not the
-  distribution*:
-  - Installs the runtime dependencies and the codec set (verbatim from
-    transaction 12, `.i686` architectures included — the 32-bit halves are
-    what older Proton builds and 32-bit games need).
-  - Deliberately does **not** manage Steam, Lutris, Heroic, gamescope,
-    gamemode, MangoHud or OBS. They ship with the image and Nobara updates
-    them; managing them here would fight `nobara-sync`.
-  - Omits `rocm-meta` from that install line — AMD's compute stack on an
-    NVIDIA machine, along for the ride because the command was run wholesale.
-  - Installs Proton-GE pinned to `GE-Proton11-3`, checksum-verified against
-    the release's own `.sha512sum` so pinning a version doesn't also mean
-    pasting a hash nobody re-verifies.
-  - **Refuses to run as root.** `compatibilitytools.d` is under `$HOME`, so
-    under `sudo` the build lands in `/root` where Steam never looks — and the
-    run would report success. Same class of bug as `claude_desktop`'s
-    `--doctor` gotcha. It also resolves the home directory with `getent`
-    rather than `ansible_env.HOME`, which is already root's once the play's
-    `become` is in effect.
-  - Reports Proton builds it doesn't manage. `Proton-GE Latest`, installed via
-    ProtonPlus, is flagged as one a rebuild won't restore.
-  - Verified live as the desktop user: correct home resolution, download and
-    unpack skipped for the already-present pinned build, idempotent on a second
-    run, and clean under `--check`.
-
 ## 2026-08-14
-
 - **Base machine**: newly built gaming PC, `gaming-pc`, running Nobara Linux
   44 (KDE Plasma), NVIDIA GeForce RTX 4060 Ti.
 - **NVIDIA driver**: already installed and working (`nvidia-smi` reports

@@ -1,0 +1,66 @@
+---
+# Idle behaviour. Screens dim a minute before they blank, so the blank isn't a
+# surprise, and the lock lands at the same moment the screens go dark.
+power_display_dim_sec: 540
+power_display_off_sec: 600
+power_display_off_when_locked_sec: 120
+
+# kscreenlocker counts in MINUTES, unlike everything else here. Matched to
+# power_display_off_sec so blanking and locking coincide.
+power_lock_timeout_min: 10
+power_lock_on_resume: true
+
+# PowerDevil action enum. 1 = Sleep, 8 = Shut down — VERIFIED on this machine
+# by setting each in System Settings and reading back what was written, not
+# inferred. Worth keeping that provenance: the numbering is not documented
+# anywhere obvious, and guessing wrong here means a machine that shuts down
+# after an hour of idle instead of sleeping.
+power_suspend_action: 1
+power_suspend_idle_sec: 3600
+power_button_action: 1
+
+# Whether to manage USB wake sources. See the README for the firmware setting
+# this depends on and cannot supply.
+power_manage_usb_wake: true
+
+# Every Plasma setting this role owns, declared explicitly. group_args is
+# spelled out rather than generated, because kwriteconfig6 takes a repeated
+# --group flag and building that from a list is the kind of cleverness that
+# makes a config role hard to read.
+power_plasma_settings:
+  - file: powerdevilrc
+    group_args: ['--group', 'AC', '--group', 'Display']
+    key: DimDisplayIdleTimeoutSec
+    value: "{{ power_display_dim_sec }}"
+  - file: powerdevilrc
+    group_args: ['--group', 'AC', '--group', 'Display']
+    key: TurnOffDisplayIdleTimeoutSec
+    value: "{{ power_display_off_sec }}"
+  - file: powerdevilrc
+    group_args: ['--group', 'AC', '--group', 'Display']
+    key: TurnOffDisplayIdleTimeoutWhenLockedSec
+    value: "{{ power_display_off_when_locked_sec }}"
+  - file: powerdevilrc
+    group_args: ['--group', 'AC', '--group', 'SuspendAndShutdown']
+    key: AutoSuspendAction
+    value: "{{ power_suspend_action }}"
+  - file: powerdevilrc
+    group_args: ['--group', 'AC', '--group', 'SuspendAndShutdown']
+    key: AutoSuspendIdleTimeoutSec
+    value: "{{ power_suspend_idle_sec }}"
+  - file: powerdevilrc
+    group_args: ['--group', 'AC', '--group', 'SuspendAndShutdown']
+    key: PowerButtonAction
+    value: "{{ power_button_action }}"
+  - file: kscreenlockerrc
+    group_args: ['--group', 'Daemon']
+    key: Autolock
+    value: "true"
+  - file: kscreenlockerrc
+    group_args: ['--group', 'Daemon']
+    key: Timeout
+    value: "{{ power_lock_timeout_min }}"
+  - file: kscreenlockerrc
+    group_args: ['--group', 'Daemon']
+    key: LockOnResume
+    value: "{{ power_lock_on_resume | lower }}"

@@ -1,0 +1,38 @@
+# Allow the keyboard and mouse to wake the machine from suspend.
+#
+# The wake signal crosses FIVE levels and every one must be armed. Arming the
+# device and its hub is not enough — both report "enabled" and the machine
+# still will not wake, because the signal dies at the ROOT HUB above them:
+#
+#   3-4.2          keyboard+mouse HID device     1bcf:08a0
+#   3-4            the USB 2.0 hub               1a40:0101
+#   usb3 / usb4    the ROOT HUBS                 1d6b:0002 / 1d6b:0003
+#   0000:2d:00.3   xHCI controller               (enabled by firmware)
+#   0000:00:08.1   PCI bridge                    (enabled by firmware)
+#
+# Walk the chain with:
+#   p=$(readlink -f /sys/bus/usb/devices/3-4.2)
+#   while [ -n "$p" ] && [ "$p" != /sys/devices ]; do
+#       [ -e "$p/power/wakeup" ] && echo "$(basename $p) $(cat $p/power/wakeup)"
+#       p=$(dirname "$p")
+#   done
+#
+# ACTION=="add|change", not "add" alone: `udevadm trigger` emits a *change*
+# event, so an add-only rule silently does nothing until the next replug.
+#
+# FIRMWARE PREREQUISITE, which this rule cannot supply:
+#   MSI BIOS -> Settings -> Advanced -> Wake Up Event Setup
+#     Resume By USB Device = Enabled      <- was disabled; this was the blocker
+#     Wake Up Event By     = BIOS
+#   ErP Ready was already Disabled on this board and was NOT the cause.
+# Without that setting the rule is present, correct, and useless.
+
+# The input device itself
+ACTION=="add|change", SUBSYSTEM=="usb", ATTR{idVendor}=="1bcf", ATTR{idProduct}=="08a0", ATTR{power/wakeup}="enabled"
+
+# The hub it sits behind
+ACTION=="add|change", SUBSYSTEM=="usb", ATTR{idVendor}=="1a40", ATTR{idProduct}=="0101", ATTR{power/wakeup}="enabled"
+
+# The root hubs on that controller, matched by PCI address because usbN
+# numbering is not guaranteed stable across boots.
+ACTION=="add|change", SUBSYSTEM=="usb", ATTR{idVendor}=="1d6b", KERNELS=="0000:2d:00.3", ATTR{power/wakeup}="enabled"

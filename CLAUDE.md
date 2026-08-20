@@ -60,6 +60,7 @@ diagnostics gotcha below; this distinction is load-bearing.
 | NVIDIA driver | Installed out-of-band, deliberately unmanaged |
 | Dotfiles / KDE settings | **Captured, deliberately not managed** — see below |
 | Gaming stack | **Post-install additions managed** — `roles/gaming`. Nobara's own packages deliberately unmanaged |
+| Power / idle behaviour | **Managed** — `roles/power_management`. Depends on a BIOS setting the role can't apply |
 
 ## Manage the delta, not the distribution
 
@@ -128,10 +129,10 @@ machine is close to stock Nobara Plasma. `kcminputrc` doesn't exist,
 `[General]` is a single opaque `ColorSchemeHash`, and the 251 lines of
 `kglobalshortcutsrc` are Plasma's own defaults.
 
-The one clear set of deliberate choices is `powerdevilrc` — dim at 600s,
-display off at 900s, 120s when locked, `AutoSuspendAction=0`. **The owner
-confirmed these are intentional** (this machine shouldn't sleep mid-download).
-Don't "fix" them.
+The one area that *was* a set of deliberate choices, `powerdevilrc`, has since
+moved out of this section entirely — it's managed by `roles/power_management`
+now. Don't treat power settings as unmanaged KDE config; see the power section
+below.
 
 When the time comes, use **`kwriteconfig6`, not file copying**. Plasma rewrites
 these files while it runs, so copying whole files fights it for ownership,
@@ -147,6 +148,34 @@ by name and that list is load-bearing, not decoration:
 | `~/.config/kdeconnect/` | Device pairing **private key** and certificate |
 | `kwinoutputconfig.json` | Monitor EDID hashes and identifiers |
 | `kactivitymanagerd-statsrc` | Usage statistics |
+
+## Power and idle behaviour — one part is firmware
+
+`roles/power_management` sets when the screens blank, when the session locks,
+and when the machine suspends. It also installs a udev rule arming USB wake.
+
+**The role cannot make wake work on its own.** MSI BIOS → Settings → Advanced →
+Wake Up Event Setup → **Resume By USB Device must be Enabled**. With it off,
+every sysfs level reads `enabled` and the machine still will not wake — the rule
+is present, correct and inert. A rebuild restores the rule and cannot restore
+the firmware setting, so it sits on the manual checklist next to recreating the
+SMB credentials.
+
+`ErP Ready` was **not** the cause and was already Disabled. It got suspected
+because the keyboard LEDs go dark in S3, which is a consequence of
+`Resume By USB Device` being off. Recorded so nobody re-tests it.
+
+Two things worth not rediscovering:
+
+- **The USB wake signal crosses five levels** — device, hub, root hub, xHCI
+  controller, PCI bridge — and all must be armed. Arming the device and its hub
+  looks complete (both report `enabled`) and does nothing, because the signal
+  dies at the root hub. `roles/power_management/README.md` has a chain-walking
+  snippet; use it rather than checking the device.
+- **PowerDevil's action enum: `1` = Sleep, `8` = Shut down**, verified by
+  setting each in System Settings and reading back what was written. An early
+  guess that `8` meant "Lock screen" was wrong, and getting `AutoSuspendAction`
+  wrong means a machine that shuts down after an hour idle.
 
 ## Gotchas discovered the hard way
 

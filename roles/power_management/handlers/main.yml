@@ -1,0 +1,10 @@
+---
+- name: Reload udev rules
+  ansible.builtin.command: udevadm control --reload
+  changed_when: true
+
+- name: Re-trigger USB devices
+  # --action=change, because the rule matches add|change and a bare trigger
+  # emits change. An add-only rule would silently do nothing here.
+  ansible.builtin.command: udevadm trigger --subsystem-match=usb --action=change
+  changed_when: true

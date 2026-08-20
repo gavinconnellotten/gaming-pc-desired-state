@@ -1,0 +1,124 @@
+---
+# ---------------------------------------------------------------------------
+# USB wake sources
+#
+# The wake signal crosses five levels and every one must be armed. Arming the
+# input device and its hub is NOT enough — both report "enabled" and the
+# machine still will not wake, because the signal dies at the root hub above
+# them. That cost an afternoon on 2026-08-20.
+#
+# This role can arm all of it. It CANNOT set the firmware option the whole
+# thing depends on: MSI BIOS -> Wake Up Event Setup -> Resume By USB Device.
+# With that disabled the rule is present, correct and completely inert, so the
+# verification below reports the chain rather than assuming success.
+# ---------------------------------------------------------------------------
+- name: Install the USB wake udev rule
+  ansible.builtin.copy:
+    src: 90-usb-input-wakeup.rules
+    dest: /etc/udev/rules.d/90-usb-input-wakeup.rules
+    owner: root
+    group: root
+    mode: "0644"
+  when: power_manage_usb_wake | bool
+  notify:
+    - Reload udev rules
+    - Re-trigger USB devices
+
+- name: Apply udev changes now
+  ansible.builtin.meta: flush_handlers
+
+# ---------------------------------------------------------------------------
+# Plasma settings
+#
+# kwriteconfig6, never file copying. Plasma rewrites these files while it runs,
+# so copying whole files fights it for ownership and clobbers every setting not
+# declared here. Same reasoning as the KDE notes in CLAUDE.md.
+#
+# become: false throughout — these are per-user config files. Under sudo they
+# would be written into root's home, where the desktop session never reads
+# them, and the run would report success.
+# ---------------------------------------------------------------------------
+- name: Determine the user Plasma settings will be written for
+  ansible.builtin.command: id -un
+  become: false
+  changed_when: false
+  check_mode: false
+  register: power_desktop_user
+
+- name: Fail if Plasma settings would be written for root
+  ansible.builtin.fail:
+    msg: >-
+      These are per-user Plasma settings and would be written into root's home,
+      where your desktop will never read them. Run the playbook as your desktop
+      user with --ask-become-pass rather than under sudo.
+  when: power_desktop_user.stdout == 'root'
+
+# Read before writing so the role is honestly idempotent. kwriteconfig6 has no
+# "only if different" mode and always exits 0, so running it unconditionally
+# would report changed on every single run.
+- name: Read the current value of each Plasma setting
+  ansible.builtin.command:
+    argv: "{{ ['kreadconfig6', '--file', item.file] + item.group_args + ['--key', item.key] }}"
+  become: false
+  changed_when: false
+  check_mode: false
+  failed_when: false
+  register: power_current
+  loop: "{{ power_plasma_settings }}"
+  loop_control:
+    label: "{{ item.file }}:{{ item.key }}"
+
+- name: Apply Plasma power and lock settings
+  ansible.builtin.command:
+    argv: "{{ ['kwriteconfig6', '--file', item.item.file] + item.item.group_args + ['--key', item.item.key, item.item.value | string] }}"
+  become: false
+  when: item.stdout | default('') | trim != item.item.value | string
+  loop: "{{ power_current.results }}"
+  loop_control:
+    label: "{{ item.item.file }}:{{ item.item.key }}"
+
+# ---------------------------------------------------------------------------
+# Verification
+# ---------------------------------------------------------------------------
+- name: Check the USB wake chain from the input device upward
+  ansible.builtin.shell:
+    cmd: |
+      dev=$(grep -oE 'idVendor}=="[0-9a-f]{4}"' /etc/udev/rules.d/90-usb-input-wakeup.rules | head -1)
+      for d in /sys/bus/usb/devices/*/; do
+        [ "$(cat "$d/idVendor" 2>/dev/null)" = "1bcf" ] || continue
+        p=$(readlink -f "$d")
+        while [ -n "$p" ] && [ "$p" != /sys/devices ]; do
+          if [ -e "$p/power/wakeup" ]; then
+            printf '%s=%s\n' "$(basename "$p")" "$(cat "$p/power/wakeup")"
+          fi
+          p=$(dirname "$p")
+        done
+        break
+      done
+  become: false
+  changed_when: false
+  check_mode: false
+  failed_when: false
+  register: power_wake_chain
+  when: power_manage_usb_wake | bool
+
+- name: Report the USB wake chain
+  ansible.builtin.debug:
+    msg: >-
+      USB wake chain: {{ power_wake_chain.stdout_lines | default([]) | join(', ') }}.
+      {% if 'disabled' in (power_wake_chain.stdout | default('')) %}
+      At least one level is DISABLED, so the machine will not wake on keypress.
+      If the rule is installed and levels are still disabled, the block is
+      firmware: MSI BIOS -> Wake Up Event Setup -> Resume By USB Device must be
+      Enabled. This role cannot set that.
+      {% else %}All levels armed.{% endif %}
+  when:
+    - power_manage_usb_wake | bool
+    - power_wake_chain.stdout | default('') | length > 0
+
+- name: Report the sleep configuration
+  ansible.builtin.debug:
+    msg: >-
+      Screens dim at {{ power_display_dim_sec }}s, blank and lock at
+      {{ power_display_off_sec }}s, suspend after {{ power_suspend_idle_sec }}s.
+      Plasma may need a session restart to pick up changed values.

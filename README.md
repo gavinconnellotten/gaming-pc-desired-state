@@ -65,6 +65,7 @@ the logins in a password manager.
 | Claude Desktop | Managed via `roles/claude_desktop` |
 | SMB network shares | Managed via `roles/smb_mounts` |
 | Gaming stack | Post-install additions managed via `roles/gaming`; Nobara's own packages left alone |
+| Power / idle behaviour | Managed via `roles/power_management` (plus one BIOS setting) |
 | Dotfiles / KDE settings | Not managed yet |
 | State capture | `scripts/capture-state.sh` → `state/` |
 
