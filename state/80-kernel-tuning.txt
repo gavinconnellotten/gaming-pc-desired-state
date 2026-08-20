@@ -41,6 +41,7 @@ vhost.conf
 70-wooting.rules
 71-sony-controllers.rules
 75-powercap.rules
+90-usb-input-wakeup.rules
 99-ntsync.rules
 99-steelseries.rules
 99-thunderbolt.rules
