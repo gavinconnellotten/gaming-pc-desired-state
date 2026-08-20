@@ -61,6 +61,7 @@ diagnostics gotcha below; this distinction is load-bearing.
 | Dotfiles / KDE settings | **Captured, deliberately not managed** — see below |
 | Gaming stack | **Post-install additions managed** — `roles/gaming`. Nobara's own packages deliberately unmanaged |
 | Power / idle behaviour | **Managed** — `roles/power_management`. Depends on a BIOS setting the role can't apply |
+| Desktop apps | **Managed** — `roles/desktop_apps`. qBittorrent, Proton VPN, Proton Mail |
 
 ## Manage the delta, not the distribution
 
@@ -139,6 +140,11 @@ these files while it runs, so copying whole files fights it for ownership,
 clobbers every setting not declared, and restores UUIDs that mean nothing on a
 new install. Declaring individual keys is the same principle as the managed
 block in `/etc/fstab`: own the settings that were decided, leave the rest alone.
+
+If a whole file *must* be replaced, the session compositor has to be stopped
+first — and note that the login screen runs its own `kwin_wayland`, so
+`pgrep` cannot tell you whether yours is running. Check
+`systemctl --user is-active plasma-kwin_wayland.service`. See `state/README.md`.
 
 **Three files must never be captured or committed** — the capture excludes them
 by name and that list is load-bearing, not decoration:

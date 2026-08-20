@@ -4,6 +4,34 @@ Dated log of what's been done to `gaming-pc`, and whether it's been codified
 into this repo yet.
 
 ## 2026-08-20
+
+- **New `roles/desktop_apps`** for applications added after the install:
+  qBittorrent and Proton VPN via dnf, Proton Mail via Flathub at user scope.
+  - **Two of the five requested Proton apps do not exist on Linux.** Proton
+    Calendar has no standalone client — it is a tab inside the Proton Mail
+    desktop app. Proton Drive has no Linux client at all; `rclone` speaks its
+    protocol and the role can install it, but it is off by default since a
+    command-line sync tool with no configured remote achieves nothing.
+  - **Proton VPN is the RPM (`proton-vpn-gtk-app`, terra), not the flatpak.** A
+    VPN client has to manage NetworkManager, routes and DNS system-wide, which
+    is exactly what a flatpak sandbox exists to prevent.
+  - Flatpaks are driven with plain `command` tasks rather than
+    `community.general.flatpak`, since this repo is ansible-core only. The role
+    checks with `flatpak info` first, because `flatpak install` is not quiet
+    about an already-present ref.
+  - User scope, so `become: false` and a refusal if it would run as root —
+    otherwise the install lands in root's flatpak installation and the run
+    reports success. Fourth role to need this guard.
+- **KWin config landmine cleared.** The stale 640x480 profile for DP-3 is gone
+  and `allowDdcCi` is false on all three outputs. Done by an `at` job watching
+  `plasma-kwin_wayland.service`, after a first attempt watching the
+  `kwin_wayland` *process* waited forever: **the login screen runs its own
+  compositor** (`plasma-login-kwin_wayland.service`), overlapping the session's,
+  so the process never disappears. Recorded in `state/README.md`.
+- **DP link watcher is now a lingering user service**
+  (`~/.config/systemd/user/dp-link-watch.service`, logging to
+  `~/.local/state/dp-link-events.log`) so it survives logout, which the earlier
+  shell-backgrounded version did not.
 - **Power, lock and standby configured, and codified as `roles/power_management`.**
   Screens dim at 9 min, blank and lock at 10 min, machine suspends to RAM after
   1 hour, power button sleeps rather than shuts down, password required on
@@ -50,6 +78,7 @@ into this repo yet.
   already selecting GE-Proton11-5 from the prefix's own version file).
 
 ## 2026-08-16 (display wake fault)
+
 - **A monitor kept returning from power-save at 640x480.** Diagnosed from the
   machine: DisplayPort fully de-enumerates when a display sleeps, and on wake
   PowerDevil immediately probes the monitors over I2C for DDC/CI brightness
@@ -75,6 +104,7 @@ into this repo yet.
   two things to look at.
 
 ## 2026-08-16
+
 - **Lutris runners are now captured.** Lutris keeps its own Wine builds in
   `~/.local/share/lutris/runners/` — `wine-ge-8-26-x86_64` today — which is the
   same unpacked-tarball category as Proton builds in `compatibilitytools.d`:
@@ -94,6 +124,7 @@ into this repo yet.
   Both diffed constantly while saying nothing. Masked and dropped respectively.
 
 ## 2026-08-15 (KDE capture)
+
 - **Plasma settings are now captured, and deliberately not managed.**
   `state/90-desktop-kde.txt` previously listed config *filenames*; it now dumps
   an allowlist of the settings files themselves, plus the distro defaults they
@@ -126,6 +157,7 @@ into this repo yet.
   fights it for ownership and clobbers anything undeclared.
 
 ## 2026-08-15 (later)
+
 - **Answered "what did I install to fix Steam?" from the machine rather than
   memory.** `dnf` transaction 1 is the package set baked into the ISO, stamped
   2026-04-24 when Nobara built the image; everything from transaction 2
@@ -175,6 +207,7 @@ into this repo yet.
     run, and clean under `--check`.
 
 ## 2026-08-15
+
 - **SMB shares fixed.** The two CIFS mounts had been failing since they were
   written. Diagnosed on the machine rather than from description, which changed
   the answer completely.
@@ -277,6 +310,7 @@ into this repo yet.
 - **Baseline recaptured** post-reboot, replacing the pre-reboot one.
 
 ## 2026-08-14
+
 - **Base machine**: newly built gaming PC, `gaming-pc`, running Nobara Linux
   44 (KDE Plasma), NVIDIA GeForce RTX 4060 Ti.
 - **NVIDIA driver**: already installed and working (`nvidia-smi` reports

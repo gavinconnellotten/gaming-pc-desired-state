@@ -1,0 +1,65 @@
+---
+- name: Install desktop applications from dnf
+  ansible.builtin.dnf:
+    name: "{{ desktop_apps_dnf + (['rclone'] if desktop_apps_install_rclone | bool else []) }}"
+    state: present
+  when: desktop_apps_dnf | length > 0
+
+# ---------------------------------------------------------------------------
+# Flatpaks
+#
+# Driven with plain commands rather than community.general.flatpak, because
+# this repo is ansible-core only — a Galaxy collection would mean another
+# install step on a rebuilt machine. Checking before installing is what keeps
+# it idempotent; `flatpak install` is not silent about already-installed refs.
+#
+# become: false throughout. These are USER-scope installs; under sudo they
+# would land in root's flatpak installation, which the desktop session never
+# shows, and the run would report success.
+# ---------------------------------------------------------------------------
+- name: Determine the user flatpaks will be installed for
+  ansible.builtin.command: id -un
+  become: false
+  changed_when: false
+  check_mode: false
+  register: desktop_apps_user
+  when: desktop_apps_flatpaks | length > 0
+
+- name: Fail if flatpaks would be installed for root
+  ansible.builtin.fail:
+    msg: >-
+      These are user-scope flatpaks and would be installed into root's flatpak
+      installation, where your desktop will never see them. Run the playbook as
+      your desktop user with --ask-become-pass rather than under sudo.
+  when:
+    - desktop_apps_flatpaks | length > 0
+    - desktop_apps_user.stdout == 'root'
+
+- name: Check which flatpaks are already installed
+  ansible.builtin.command: "flatpak info --user {{ item.id }}"
+  become: false
+  register: desktop_apps_flatpak_state
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  loop: "{{ desktop_apps_flatpaks }}"
+  loop_control:
+    label: "{{ item.id }}"
+
+- name: Install missing flatpaks
+  ansible.builtin.command: >-
+    flatpak install --user --noninteractive --assumeyes
+    {{ desktop_apps_flatpak_remote }} {{ item.item.id }}
+  become: false
+  when: item.rc != 0
+  loop: "{{ desktop_apps_flatpak_state.results }}"
+  loop_control:
+    label: "{{ item.item.id }} ({{ item.item.name }})"
+
+- name: Report what is not available on Linux at all
+  ansible.builtin.debug:
+    msg: >-
+      Proton Calendar and Proton Drive have no Linux desktop clients. Calendar
+      is built into the Proton Mail app as a tab; Drive is browser-only unless
+      you set desktop_apps_install_rclone=true and configure an rclone remote.
+      See roles/desktop_apps/README.md.

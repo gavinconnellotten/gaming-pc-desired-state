@@ -1,0 +1,27 @@
+---
+# Applications installed by hand after the Nobara install. Same principle as
+# roles/gaming: manage the delta, leave the distribution's own packages alone.
+
+# RPMs. qbittorrent comes from the nobara repo; proton-vpn-gtk-app from terra,
+# which Nobara enables by default.
+#
+# ProtonVPN is deliberately the RPM rather than the Flathub build. A VPN client
+# needs to talk to NetworkManager and manage routes and DNS for the whole
+# system; the flatpak is sandboxed and makes that harder for no benefit. See
+# the README.
+desktop_apps_dnf:
+  - qbittorrent
+  - proton-vpn-gtk-app
+
+# Flatpaks, installed at USER scope to match the two already on this machine
+# (Flatseal and Bazaar). Mixing user and system scope makes "why do I have two
+# copies of this" conversations later.
+desktop_apps_flatpak_remote: flathub
+desktop_apps_flatpaks:
+  - id: me.proton.Mail
+    name: Proton Mail
+
+# Proton Drive has no Linux desktop client. rclone speaks its protocol and is
+# the usual workaround, but it is a command-line sync tool rather than a
+# drop-in replacement, so it is off unless asked for. See the README.
+desktop_apps_install_rclone: false

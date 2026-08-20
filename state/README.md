@@ -86,6 +86,23 @@ monitors over I2C at wake time and can be what breaks the EDID read. The
 capture's own "Display connector health" section flags the symptom: a connected
 output offering only one or two modes has not delivered its EDID.
 
+**Replacing that file requires the session compositor to be stopped**, because
+KWin rewrites it while running. Two traps there, both of which cost an attempt
+on 2026-08-20:
+
+- `Ctrl+Alt+F3` only *switches* virtual terminals. The Plasma session keeps
+  running on the other one, KWin included, so a copy made from a TTY without
+  logging out first is silently overwritten later. Log out first.
+- **The login screen runs its own `kwin_wayland`.** `plasma-login` starts
+  `plasma-login-kwin_wayland.service`, which overlaps the session's compositor
+  — the greeter's is still up when yours starts. So `pgrep kwin_wayland` never
+  returns empty and cannot tell you whether *your* session is running. Check
+  the unit instead:
+
+  ```bash
+  systemctl --user is-active plasma-kwin_wayland.service
+  ```
+
 Also skipped as generated state with no settings in it: `session/`,
 `plasmanotifyrc`, `kconf_updaterc`, `Trolltech.conf`, `QtProject.conf`.
 

@@ -66,6 +66,7 @@ the logins in a password manager.
 | SMB network shares | Managed via `roles/smb_mounts` |
 | Gaming stack | Post-install additions managed via `roles/gaming`; Nobara's own packages left alone |
 | Power / idle behaviour | Managed via `roles/power_management` (plus one BIOS setting) |
+| Desktop apps | Managed via `roles/desktop_apps` (qBittorrent, Proton VPN, Proton Mail) |
 | Dotfiles / KDE settings | Not managed yet |
 | State capture | `scripts/capture-state.sh` → `state/` |
 
