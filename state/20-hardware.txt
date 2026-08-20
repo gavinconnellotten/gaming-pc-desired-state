@@ -103,13 +103,12 @@ Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
 Bus 001 Device 002: ID 05e3:0608 Genesys Logic, Inc. Hub
 Bus 001 Device 003: ID 1462:7c95 Micro Star International MYSTIC LIGHT 
 Bus 001 Device 004: ID 0e8d:0616 MediaTek Inc. Wireless_Device
-Bus 001 Device 010: ID 1949:06c8 Lab126, Inc. AFTKRT
 Bus 002 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub
 Bus 003 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
 Bus 003 Device 002: ID 1de7:0414 Phoenix Audio Technologies Phnx Spider-Smart
 Bus 003 Device 003: ID 1a40:0101 Terminus Technology Inc. Hub
-Bus 003 Device 004: ID 1bcf:08a0 Sunplus Innovation Technology Inc. Gaming mouse [Philips SPK9304]
 Bus 003 Device 005: ID 0b39:0001 Omnidirectional Control Technology, Inc. Composite USB PS2 Converter
 Bus 003 Device 006: ID 046d:0843 Logitech, Inc. Webcam C930e
+Bus 003 Device 014: ID 1bcf:08a0 Sunplus Innovation Technology Inc. Gaming mouse [Philips SPK9304]
 Bus 004 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub
 

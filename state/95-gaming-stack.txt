@@ -28,6 +28,10 @@ lutris
 mangohud
 mangohud
 protonplus
+proton-vpn-gtk-app
+python3-proton-core
+python3-proton-vpn-api-core
+python3-proton-vpn-local-agent
 steam
 steam-arch-transition
 steam-devices

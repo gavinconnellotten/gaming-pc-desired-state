@@ -88,5 +88,6 @@ samba-winbind-modules-4.24.2
 
 ## Mount errors this boot
 
-(no output)
+Aug 21 08:32:32 <host> systemd[1]: mnt-plex\x2dmovies.mount: Failed with result 'exit-code'.
+Aug 21 08:32:32 <host> systemd[1]: Failed to mount mnt-plex\x2dmovies.mount - /mnt/plex-movies.
 

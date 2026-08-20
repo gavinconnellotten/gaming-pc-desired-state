@@ -456,6 +456,7 @@ prefixdevname
 prismlauncher
 procps-ng
 protonplus
+proton-vpn-gtk-app
 psacct
 ptouch-driver
 pulseaudio-libs
