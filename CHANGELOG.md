@@ -3,6 +3,23 @@
 Dated log of what's been done to `gaming-pc`, and whether it's been codified
 into this repo yet.
 
+## 2026-08-21
+
+- **Full playbook run against the machine: `ok=44 changed=3 failed=0`.**
+  Proton VPN and Proton Mail installed as intended. The third change was a bug.
+- **`smb_mounts` was reporting `changed` forever on "Create mountpoints".**
+  While a share is mounted, the mountpoint path *is* the remote filesystem's
+  root. The mounted CIFS root reports the mount's `dir_mode` (0775), not the
+  0755 the task wants for the bare directory, so Ansible saw a mismatch and
+  issued a `chmod` against the server — which CIFS ignores, because `dir_mode`
+  is forced. Every run reported a change and no run changed anything.
+  - Fixed by checking `findmnt` first and skipping mountpoint creation for
+    anything already mounted. Verified: three mounted shares, all skipped,
+    `changed=0`; the task still runs and sets ownership when nothing is
+    mounted, which is the case that matters on a rebuild.
+  - Only visible by running the playbook twice and reading the recap. A single
+    run looks entirely healthy.
+
 ## 2026-08-20
 
 - **New `roles/desktop_apps`** for applications added after the install:

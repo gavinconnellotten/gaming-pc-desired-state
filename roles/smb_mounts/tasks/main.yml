@@ -105,18 +105,39 @@
 # fstab
 # ---------------------------------------------------------------------------
 
+# Whether a share is mounted right now decides what the next task is even
+# looking at. With nothing mounted, the mountpoint is a plain local directory.
+# With a share mounted, the same path IS the remote filesystem's root.
+- name: Check whether anything is already mounted on each mountpoint
+  ansible.builtin.command: "findmnt --noheadings --output SOURCE --target {{ item.mountpoint }} --types cifs"
+  register: smb_mounts_preexisting
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  loop: "{{ smb_mounts }}"
+  loop_control:
+    label: "{{ item.mountpoint }}"
+
 # Must exist before the fstab block is validated: findmnt --verify rejects an
 # entry whose target directory is missing.
+#
+# Skipped for anything currently mounted, and that guard is load-bearing. The
+# mounted CIFS root reports the mode from the mount's dir_mode option (0775),
+# not this task's 0755, so Ansible sees a mismatch and issues a chmod against
+# the SERVER's filesystem root — which CIFS ignores because dir_mode is forced.
+# The result is a task that reports "changed" on every single run and never
+# changes anything. Found by running the playbook twice and reading the recap.
 - name: Create mountpoints
   ansible.builtin.file:
-    path: "{{ item.mountpoint }}"
+    path: "{{ item.0.mountpoint }}"
     state: directory
     owner: "{{ smb_mounts_uid }}"
     group: "{{ smb_mounts_gid }}"
     mode: "0755"
-  loop: "{{ smb_mounts }}"
+  when: item.1.rc != 0
+  loop: "{{ smb_mounts | zip(smb_mounts_preexisting.results) | list }}"
   loop_control:
-    label: "{{ item.mountpoint }}"
+    label: "{{ item.0.mountpoint }}"
 
 # Hand-written CIFS lines left over from an earlier attempt will fight the
 # managed block: two fstab entries for one mountpoint produce conflicting

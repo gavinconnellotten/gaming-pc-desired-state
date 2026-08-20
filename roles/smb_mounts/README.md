@@ -71,7 +71,7 @@ machine from booting.
 `x-systemd.idle-timeout=60` unmounts the share after a minute of inactivity,
 which keeps a sleeping NAS from leaving stale handles behind.
 
-## Two things that bite
+## Three things that bite
 
 **Unit names aren't the path with slashes swapped for hyphens.** systemd
 escapes a literal hyphen inside a path component to `\x2d`, because a hyphen
@@ -80,6 +80,16 @@ already means `/` in a unit name. So `/mnt/plex-movies` is
 `systemd-escape --path` instead of deriving the name by substitution — an
 earlier version guessed, produced a unit that doesn't exist, and masked the
 failure with `failed_when: false`.
+
+**A mounted share is not the directory you think you're modifying.** While a
+share is mounted, the mountpoint path *is* the remote filesystem's root — so
+anything setting ownership or mode on it is acting on the server, not on the
+local directory underneath. The mounted root reports the mount's `dir_mode`
+(0775), not the 0755 the role wants for the bare directory, so Ansible saw a
+mismatch, issued a `chmod` that CIFS ignores because `dir_mode` is forced, and
+reported `changed` on every single run while changing nothing. The role now
+skips mountpoint creation for anything already mounted. Found by running the
+playbook a second time and reading the recap rather than the output.
 
 **`findmnt --verify` checks the whole file, not just the new block.**
 gaming-pc's fstab lists `/boot/efi` before `/boot`, which findmnt reports as an
