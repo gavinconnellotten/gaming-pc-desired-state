@@ -99,6 +99,7 @@ unbound-anchor.timer -> unbound-anchor.service
 
 dbus-broker.service enabled enabled
 dbus.socket enabled enabled
+dp-link-watch.service enabled disabled
 grub-boot-success.timer enabled enabled
 obex.service enabled enabled
 pipewire-pulse.socket enabled enabled

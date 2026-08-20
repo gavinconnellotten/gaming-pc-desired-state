@@ -1,6 +1,6 @@
 # <host> state summary
 
-- Captured: 2026-08-20T03:14:55Z
+- Captured: 2026-08-20T04:19:36Z
 - Redaction: enabled
 - OS: Nobara Linux 44 (KDE Plasma Desktop Edition)
 - Kernel: 7.1.4-200.nobara.fc44.x86_64
@@ -15,7 +15,7 @@
 ## Files
 
 - `10-os-kernel.txt` (56 lines)
-- `20-hardware.txt` (114 lines)
+- `20-hardware.txt` (115 lines)
 - `30-gpu-nvidia.txt` (69 lines)
 - `40-storage.txt` (61 lines)
 - `45-network-mounts.txt` (92 lines)
@@ -24,8 +24,8 @@
 - `56-packages-all.txt` (3944 lines)
 - `57-post-iso-additions.txt` (71 lines)
 - `60-flatpaks-snaps.txt` (26 lines)
-- `70-services.txt` (115 lines)
+- `70-services.txt` (116 lines)
 - `80-kernel-tuning.txt` (63 lines)
-- `90-desktop-kde.txt` (838 lines)
+- `90-desktop-kde.txt` (812 lines)
 - `95-gaming-stack.txt` (68 lines)
 - `97-user-env.txt` (68 lines)
