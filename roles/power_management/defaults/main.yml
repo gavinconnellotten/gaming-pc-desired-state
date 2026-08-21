@@ -1,18 +1,25 @@
 ---
-# Idle behaviour. Dim at 10 minutes as a visible warning, then blank and lock
-# together at 20.
+# Idle behaviour, in four deliberately separated stages:
 #
-# Revised 2026-08-21: was dim 9 / blank+lock 10. That locked the session too
-# often in normal use — a short pause reading something was enough to trigger
-# it. Dimming is the cue that the machine is about to lock; ten minutes of it
-# is deliberate, not padding.
+#   10 min  dim      — screen still on, just darker. A warning, costs nothing.
+#   20 min  blank    — display output stops. NOT a lock; moving the mouse
+#                      brings it straight back with no password.
+#   30 min  lock     — the password prompt. Ten minutes after the screen went
+#                      dark, so a short absence costs nothing.
+#   60 min  suspend  — see the SuspendAndShutdown section.
+#
+# Revised twice on 2026-08-21. Originally dim 9 / blank+lock 10, which locked
+# the session several times a day. Then briefly blank+lock together at 20.
+# Now decoupled: blanking saves the power, locking is the security boundary,
+# and there is no reason they have to happen at the same moment.
 power_display_dim_sec: 600
 power_display_off_sec: 1200
 power_display_off_when_locked_sec: 120
 
-# kscreenlocker counts in MINUTES, unlike everything else here. Matched to
-# power_display_off_sec so blanking and locking coincide.
-power_lock_timeout_min: 20
+# kscreenlocker counts in MINUTES, unlike everything else here. Deliberately
+# LATER than power_display_off_sec — the screen is already dark by then, so
+# this is purely about when a password becomes required.
+power_lock_timeout_min: 30
 power_lock_on_resume: true
 
 # PowerDevil action enum. 1 = Sleep, 8 = Shut down — VERIFIED on this machine

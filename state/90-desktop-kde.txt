@@ -270,7 +270,7 @@ Scale=1
 [Daemon]
 Autolock=true
 LockOnResume=true
-Timeout=20
+Timeout=30
 
 ### powerdevilrc
 [AC][Display]
