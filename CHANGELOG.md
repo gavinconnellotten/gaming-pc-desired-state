@@ -5,6 +5,13 @@ into this repo yet.
 
 ## 2026-08-21
 
+- **Idle timings relaxed**: dim at 10 minutes, blank and lock together at 20,
+  suspend unchanged at 1 hour. Previously 9 / 10 / 10, which locked the session
+  too often — a pause long enough to read something triggered it. Blank and
+  lock stay coincident so the screen going dark *is* the lock rather than two
+  separate surprises, and the ten-minute dim is the warning before it. Changed
+  in `roles/power_management` defaults and applied through the role, so the
+  repo and the machine stayed in step; second run reported `changed=0`.
 - **Game load times: shader handling investigated and partly codified.**
   Black Mesa was showing "Processing Vulkan shaders" on every launch and taking
   far longer than 33s to reach its menu; it is now 33s with the dialog gone.

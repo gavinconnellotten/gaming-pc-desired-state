@@ -160,6 +160,11 @@ by name and that list is load-bearing, not decoration:
 `roles/power_management` sets when the screens blank, when the session locks,
 and when the machine suspends. It also installs a udev rule arming USB wake.
 
+Current timings: dim at 10 minutes, blank **and** lock together at 20, suspend
+at 1 hour. Revised 2026-08-21 from 9/10/10 — locking at ten minutes fired too
+readily in normal use. Dimming is the warning that a lock is coming, so the gap
+between dim and lock is deliberate rather than padding.
+
 **The role cannot make wake work on its own.** MSI BIOS → Settings → Advanced →
 Wake Up Event Setup → **Resume By USB Device must be Enabled**. With it off,
 every sysfs level reads `enabled` and the machine still will not wake — the rule
