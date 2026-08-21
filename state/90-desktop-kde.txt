@@ -597,9 +597,6 @@ show-on-mouse-pos=Meta+V,Meta+V,Show Clipboard Items at Mouse Position
 switch to next activity=none,none,Switch to Next Activity
 switch to previous activity=none,none,Switch to Previous Activity
 toggle do not disturb=none,none,Toggle do not disturb
-[services][org.kde.spectacle.desktop]
-CurrentMonitorScreenShot=none
-OpenWithoutScreenshot=none
 
 ## Distro defaults these sit on top of
 
@@ -744,6 +741,7 @@ discord
 dnf-app-center
 dolphinrc
 drkonqi-coredump-launcher.notifyrc
+environment.d
 git
 gtk-3.0
 gtk-4.0

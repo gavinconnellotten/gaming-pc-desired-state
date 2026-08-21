@@ -49,6 +49,7 @@ x265-libs
 ## Transaction history
 
 ID Command line Date and time Action(s) Altered
+22 ansible dnf5 module 2026-08-20 22:36:01 2
 21 ansible dnf5 module 2026-08-20 04:44:17 21
 20 dnf reinstall -y gamemode.i686 2026-08-16 01:41:34 2
 19 dnf install ansible-core 2026-08-14 22:47:53 5

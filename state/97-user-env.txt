@@ -31,9 +31,8 @@ crw-rw-rw- root:kvm /dev/kvm
 Claude Desktop Diagnostics
 ================================
 
-[PASS] Installed version: 1.30096.1-3.2.2.fc42
-[WARN] Version drift: official pool has 1.32885.1, this install packages 1.30096.1
-       Fix: upgrade via your package manager or download the newest release
+[PASS] Installed version: 1.32885.1-3.2.2.fc42
+[PASS] Version: in sync with the official pool (1.32885.1)
 [PASS] Display server: Wayland (WAYLAND_DISPLAY=wayland-0)
        Desktop: KDE
        Mode: X11 via XWayland (default, for global hotkey support)
@@ -41,7 +40,7 @@ Claude Desktop Diagnostics
             (disables global hotkeys)
        IME note: Wayland session, Electron via XWayland — IBus path goes through XIM (lossy for some IMEs).
        Tip: CLAUDE_USE_WAYLAND=1 enables native Wayland IME (loses global hotkeys).
-[PASS] Electron: v42.7.0 (/usr/lib/claude-desktop-unofficial/claude-desktop)
+[PASS] Electron: v42.9.2 (/usr/lib/claude-desktop-unofficial/claude-desktop)
 [PASS] Chrome sandbox: permissions OK (/usr/lib/claude-desktop-unofficial/chrome-sandbox)
 [PASS] SingletonLock: held by running process (PID <pid>)
        Password store: upstream os_crypt autodetect (default)
