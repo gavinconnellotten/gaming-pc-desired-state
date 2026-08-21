@@ -270,12 +270,12 @@ Scale=1
 [Daemon]
 Autolock=true
 LockOnResume=true
-Timeout=10
+Timeout=20
 
 ### powerdevilrc
 [AC][Display]
-DimDisplayIdleTimeoutSec=540
-TurnOffDisplayIdleTimeoutSec=600
+DimDisplayIdleTimeoutSec=600
+TurnOffDisplayIdleTimeoutSec=1200
 TurnOffDisplayIdleTimeoutWhenLockedSec=120
 [AC][SuspendAndShutdown]
 AutoSuspendAction=1
