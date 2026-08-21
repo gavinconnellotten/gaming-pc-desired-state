@@ -5,6 +5,29 @@ into this repo yet.
 
 ## 2026-08-21
 
+- **Game load times: shader handling investigated and partly codified.**
+  Black Mesa was showing "Processing Vulkan shaders" on every launch and taking
+  far longer than 33s to reach its menu; it is now 33s with the dialog gone.
+  - The dialog was **Steam's shader pre-caching** — `fossilize_replay` chewing
+    through 2.5 GB of Valve's precompiled pipeline caches for that one game.
+    Those mainly help Mesa/RADV; the NVIDIA driver keeps its own cache and
+    gains little. Disabled in Steam, which then reclaimed the space. Left as a
+    manual step: it lives in `config.vdf`, which Steam rewrites while running.
+  - **`roles/gaming` now manages NVIDIA's shader cache** via
+    `~/.config/environment.d/50-nvidia-shader-cache.conf` — 12 GB cap, cleanup
+    disabled. The driver default of roughly 1 GB is exhausted by a few games
+    between them, and the eviction that follows is why "building shaders"
+    returns after a driver update. Uses `environment.d` rather than a shell
+    profile because Steam is launched from the desktop, never a terminal.
+  - The role reports that the setting needs a **new session** — the systemd
+    user manager reads `environment.d` only at startup, so the file is inert
+    until logout, and Steam must be started from the new session to inherit it.
+  - Verified: 0 changed when matching, 1 changed and corrected when the value
+    was altered behind its back, and works with `gaming_manage_proton: false`.
+- **Correction to an earlier entry.** On 2026-08-16 the NTFS Steam library was
+  written off as defunct. It is not — Black Mesa lives there with 206 hours
+  played. The library is active, and moving games to the btrfs NVMe remains a
+  real (unmanaged) option for load times.
 - **`claude_desktop` now tracks `latest` for the app itself.** With
   `state: present` it was installed once and then drifted — the app's own
   `--doctor` had been reporting `official pool has 1.32885.1, this install

@@ -91,3 +91,46 @@ the home directory with `getent` instead.
   unmanaged. `Proton-GE Latest` on this machine is one such: it came from
   ProtonPlus and a rebuild won't restore it. Either pin it here or accept
   losing it.
+
+## Shader caching, and the load-time trap
+
+Black Mesa was taking a long time to reach its menu, showing **"Processing
+Vulkan shaders"** on every launch. Two separate things were going on.
+
+**Steam's shader pre-caching** is what produced that dialog — `fossilize_replay`
+processing Valve's precompiled pipeline caches, 2.5 GB of them for that one
+game. Those caches chiefly benefit **Mesa/RADV**; the NVIDIA proprietary driver
+keeps its own on-disk shader cache and gains little from them. Turning it off
+(Steam → Settings → Downloads → **Enable Shader Pre-Caching**) removed the step
+outright and Steam reclaimed the space. That is a **Steam client setting, not
+managed here** — it lives in `config.vdf`, which Steam rewrites while running,
+so it is a manual step like the BIOS options in `power_management`.
+
+**NVIDIA's own cache** is what this role manages. The driver's default cap is
+around 1 GB, which a few games exhaust between them; entries are then evicted
+and recompiled, which is how the "building shaders" wait comes back after a
+driver update. `gaming_shader_cache_size_bytes` raises it to 12 GB and disables
+mid-session cleanup, via `~/.config/environment.d/`.
+
+Two things worth knowing:
+
+- **`environment.d`, not a shell profile.** Steam is launched from the desktop,
+  not a terminal, so anything in `.bashrc` would never reach it.
+- **It only takes effect on a new session.** The systemd user manager reads
+  `environment.d` when it starts, so the file does nothing until you log out
+  and back in — and Steam must be started *from* that new session to inherit
+  it. The role says so when it writes the file rather than implying it is live.
+
+Verify with:
+
+```bash
+systemctl --user show-environment | grep GL_SHADER
+```
+
+What this does **not** fix is asset load time. With shaders cached, the
+remaining wait is the engine reading game data — and on this machine the Steam
+library sits on an NTFS drive mounted through FUSE, which is measurably slower
+than the btrfs NVMe. Moving a game across is a Steam operation
+(Properties → Installed Files → Move install folder), not something this role
+does.
+

@@ -27,24 +27,24 @@
 # against /root, reports success, and the desktop user gets nothing.
 # ---------------------------------------------------------------------------
 
-- name: Determine the user Proton will be installed for
+- name: Determine the desktop user
   ansible.builtin.command: id -un
   become: false
   changed_when: false
   check_mode: false
   register: gaming_user
-  when: gaming_manage_proton | bool
+  when: gaming_manage_proton | bool or gaming_manage_shader_cache | bool
 
 # Refuses rather than warns. A Proton build unpacked into /root is invisible to
 # Steam and silently useless — better to stop than to report success.
-- name: Fail if Proton would be installed for root
+- name: Fail if this would be applied to root
   ansible.builtin.fail:
     msg: >-
-      Proton would be installed into root's home, where Steam will never see
-      it. Run the playbook as your desktop user with --ask-become-pass rather
-      than under sudo.
+      This would write into root's home, where Steam will never look — a Proton
+      build or a shader cache setting placed there is silently useless. Run the
+      playbook as your desktop user with --ask-become-pass, not under sudo.
   when:
-    - gaming_manage_proton | bool
+    - gaming_manage_proton | bool or gaming_manage_shader_cache | bool
     - gaming_user.stdout == 'root'
 
 # getent rather than ansible_env.HOME: facts are gathered with the play's
@@ -144,3 +144,64 @@
   when:
     - gaming_manage_proton | bool
     - not gaming_proton_present.stat.exists
+
+# ---------------------------------------------------------------------------
+# NVIDIA shader cache
+#
+# Also user-scope, so become: false — the same trap as the Proton paths above.
+# Under sudo this would configure root's session, which never launches a game.
+# gaming_home is already resolved by the Proton block; resolve it here too so
+# this still works with gaming_manage_proton disabled.
+# ---------------------------------------------------------------------------
+- name: Resolve the desktop user's home for shader cache config
+  ansible.builtin.command: "getent passwd {{ gaming_user.stdout }}"
+  become: false
+  changed_when: false
+  check_mode: false
+  register: gaming_passwd_shader
+  when:
+    - gaming_manage_shader_cache | bool
+    - gaming_home is not defined
+
+- name: Set the shader cache config path
+  ansible.builtin.set_fact:
+    gaming_env_dir: "{{ (gaming_home | default(gaming_passwd_shader.stdout.split(':')[5])) }}/.config/environment.d"
+  when: gaming_manage_shader_cache | bool
+
+- name: Ensure environment.d exists
+  ansible.builtin.file:
+    path: "{{ gaming_env_dir }}"
+    state: directory
+    mode: "0755"
+  become: false
+  when: gaming_manage_shader_cache | bool
+
+- name: Configure the NVIDIA shader cache size
+  ansible.builtin.copy:
+    dest: "{{ gaming_env_dir }}/{{ gaming_shader_cache_file }}"
+    mode: "0644"
+    content: |
+      # Managed by roles/gaming. NVIDIA's shader cache defaults to roughly 1 GB,
+      # which several games exhaust between them; entries are then evicted and
+      # have to be recompiled, which is the "building shaders" wait returning
+      # after a driver update.
+      __GL_SHADER_DISK_CACHE_SIZE={{ gaming_shader_cache_size_bytes }}
+      __GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1
+  become: false
+  register: gaming_shader_cache_written
+  when: gaming_manage_shader_cache | bool
+
+# environment.d is read by the systemd user manager when a session starts, so a
+# newly written file does nothing until the next login. Say so rather than
+# leaving it looking applied.
+- name: Note that the shader cache setting needs a new session
+  ansible.builtin.debug:
+    msg: >-
+      Shader cache config written, but environment.d is only read when the
+      systemd user manager starts. Log out and back in, then check with
+      `systemctl --user show-environment | grep GL_SHADER`. Steam must also be
+      started from the new session to inherit it.
+  when:
+    - gaming_manage_shader_cache | bool
+    - gaming_shader_cache_written.changed
+

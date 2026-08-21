@@ -63,3 +63,18 @@ gaming_proton_ge_base_url: https://github.com/GloriousEggroll/proton-ge-custom/r
 # also mean pinning a hash by hand. get_url reads the published .sha512sum.
 gaming_proton_ge_url: "{{ gaming_proton_ge_base_url }}/{{ gaming_proton_ge_version }}/{{ gaming_proton_ge_version }}.tar.gz"
 gaming_proton_ge_checksum_url: "{{ gaming_proton_ge_base_url }}/{{ gaming_proton_ge_version }}/{{ gaming_proton_ge_version }}.sha512sum"
+
+# NVIDIA's on-disk shader cache. The driver default cap is around 1 GB, which
+# several games exhaust between them — entries then get evicted and Steam
+# rebuilds them, which is the "building shaders" dialog reappearing after every
+# driver update.
+#
+# SKIP_CLEANUP stops the driver pruning the cache while a session is running.
+#
+# Written to environment.d rather than a shell profile because it has to reach
+# GUI-launched processes: Steam is started from the desktop, not a terminal, so
+# anything in .bashrc would never be seen by it.
+gaming_manage_shader_cache: true
+gaming_shader_cache_size_bytes: 12000000000
+gaming_shader_cache_file: 50-nvidia-shader-cache.conf
+
