@@ -1,4 +1,24 @@
 ---
+# LibreWolf's repo is not owned by any package — it was added by hand. Without
+# this a rebuilt machine has nothing to install the browser from, and the
+# default-browser task below would point at a missing desktop file.
+- name: Add the LibreWolf repository
+  ansible.builtin.copy:
+    dest: "{{ desktop_apps_librewolf_repo_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by roles/desktop_apps.
+      [librewolf]
+      name=LibreWolf Software Repository
+      baseurl=https://repo.librewolf.net
+      gpgcheck=1
+      repo_gpgcheck=1
+      gpgkey=https://repo.librewolf.net/pubkey.gpg
+      enabled=1
+  when: desktop_apps_manage_librewolf_repo | bool
+
 - name: Install desktop applications from dnf
   ansible.builtin.dnf:
     name: "{{ desktop_apps_dnf + (['rclone'] if desktop_apps_install_rclone | bool else []) }}"
@@ -63,3 +83,58 @@
       is built into the Proton Mail app as a tab; Drive is browser-only unless
       you set desktop_apps_install_rclone=true and configure an rclone remote.
       See roles/desktop_apps/README.md.
+
+# ---------------------------------------------------------------------------
+# Browser cleanup and default
+# ---------------------------------------------------------------------------
+
+# Brave ships with the Nobara image, so this is a deliberate departure from
+# "manage the delta, not the distribution". Removing it also removes
+# nobara-browser-policy, which requires it and ships only Brave's policy file;
+# nothing else depends on that, so there is no cascade. The Brave *repo* is
+# left alone — nobara-repos owns it.
+- name: Remove unwanted browsers
+  ansible.builtin.dnf:
+    name: "{{ desktop_apps_remove }}"
+    state: absent
+  when: desktop_apps_remove | length > 0
+
+# Runs after the installs and removals above, deliberately: setting a default
+# for a desktop file that isn't there yet silently does nothing.
+#
+# become: false — this writes ~/.config/mimeapps.list, which is per-user. Under
+# sudo it would set root's default browser, which nothing ever consults.
+- name: Check whether the default browser is already correct
+  ansible.builtin.command: "xdg-settings check default-web-browser {{ desktop_apps_default_browser }}"
+  become: false
+  register: desktop_apps_browser_check
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: desktop_apps_default_browser | length > 0
+
+- name: Set the default browser
+  ansible.builtin.command: "xdg-settings set default-web-browser {{ desktop_apps_default_browser }}"
+  become: false
+  when:
+    - desktop_apps_default_browser | length > 0
+    - desktop_apps_browser_check.stdout | default('') | trim != 'yes'
+
+# Flatpaks open links through the XDG desktop portal, which asks the host for
+# the default handler. Nothing had ever set one, so Proton Mail's links went to
+# whichever application claimed the scheme first — Brave, as it turned out.
+- name: Report the default browser
+  ansible.builtin.command: xdg-settings get default-web-browser
+  become: false
+  register: desktop_apps_browser_now
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Show the default browser
+  ansible.builtin.debug:
+    msg: >-
+      Default browser is {{ desktop_apps_browser_now.stdout | default('unknown') | trim }}.
+      Flatpaks resolve links through the desktop portal against this, so
+      Proton Mail follows it too — restart the flatpak if it was already open.
+

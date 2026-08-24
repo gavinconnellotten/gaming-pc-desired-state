@@ -12,6 +12,7 @@
 desktop_apps_dnf:
   - qbittorrent
   - proton-vpn-gtk-app
+  - librewolf
 
 # Flatpaks, installed at USER scope to match the two already on this machine
 # (Flatseal and Bazaar). Mixing user and system scope makes "why do I have two
@@ -25,3 +26,36 @@ desktop_apps_flatpaks:
 # the usual workaround, but it is a command-line sync tool rather than a
 # drop-in replacement, so it is off unless asked for. See the README.
 desktop_apps_install_rclone: false
+
+# ---------------------------------------------------------------------------
+# Browsers
+# ---------------------------------------------------------------------------
+
+# LibreWolf ships from its own repo, and NOTHING on this machine owns
+# /etc/yum.repos.d/librewolf.repo — it was added by hand on 2026-08-09. A
+# rebuild would therefore have no repo to install from, and the default-browser
+# step below would point at a desktop file that doesn't exist. Hence the repo
+# is declared here rather than assumed.
+desktop_apps_manage_librewolf_repo: true
+desktop_apps_librewolf_repo_file: /etc/yum.repos.d/librewolf.repo
+
+# Packages to remove. Brave ships with the Nobara image (dnf transaction 1),
+# so this is a deliberate departure from "manage the delta, not the
+# distribution" — removing something the distro chose to include is a decision,
+# not drift, and it is recorded as such.
+#
+# nobara-browser-policy will be removed alongside it: it requires brave-browser
+# and ships exactly one file, /etc/brave/policies/managed/brave_nobara-policies.json.
+# Nothing else requires it, so there is no cascade.
+#
+# brave-keyring is deliberately NOT removed. /etc/yum.repos.d/brave-browser.repo
+# is owned by nobara-repos, so tearing out Brave's repo plumbing would fight a
+# Nobara-managed package for no benefit — the browser being gone is enough.
+desktop_apps_remove:
+  - brave-browser
+
+# Default browser, applied with xdg-settings after the packages are in place —
+# setting a default for a desktop file that doesn't exist yet silently does
+# nothing. Empty string disables the behaviour.
+desktop_apps_default_browser: librewolf.desktop
+

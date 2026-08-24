@@ -61,7 +61,7 @@ diagnostics gotcha below; this distinction is load-bearing.
 | Dotfiles / KDE settings | **Captured, deliberately not managed** — see below |
 | Gaming stack | **Post-install additions managed** — `roles/gaming`. Nobara's own packages deliberately unmanaged |
 | Power / idle behaviour | **Managed** — `roles/power_management`. Depends on a BIOS setting the role can't apply |
-| Desktop apps | **Managed** — `roles/desktop_apps`. qBittorrent, Proton VPN, Proton Mail |
+| Desktop apps | **Managed** — `roles/desktop_apps`. qBittorrent, Proton VPN, Proton Mail, LibreWolf; removes Brave |
 | System tuning | **Managed** — `roles/system_tuning`. Core dump storage caps |
 
 ## Manage the delta, not the distribution

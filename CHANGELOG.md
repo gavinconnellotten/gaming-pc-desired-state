@@ -5,6 +5,28 @@ into this repo yet.
 
 ## 2026-08-24
 
+- **Brave removed, LibreWolf installed and set as default**, all in
+  `roles/desktop_apps`.
+  - **Brave shipped with the Nobara image** (dnf transaction 1), so removing it
+    is a deliberate exception to "manage the delta, not the distribution" —
+    that rule is about not fighting `nobara-sync` over versions, not about
+    being obliged to keep every application the distro includes.
+    `nobara-browser-policy` is removed with it (requires `brave-browser`, ships
+    only Brave's policy file, nothing depends on it). `brave-keyring` and the
+    Brave repo are left alone, because `nobara-repos` owns the repo file.
+  - **LibreWolf's repo had to be codified.** Nothing owned
+    `/etc/yum.repos.d/librewolf.repo` — added by hand on 2026-08-09 — so a
+    rebuild would have had no repo to install from, and the default-browser
+    step would have pointed at a missing desktop file.
+  - **Brave was never "hijacking" anything.** No default browser had ever been
+    set; Brave simply won the fallback as the first application claiming
+    `x-scheme-handler/http`. Links from Proton Mail hit it because flatpaks
+    resolve URLs through the XDG portal, which asks the host for the default
+    and took the first match.
+  - The default is set after the installs and removals, since setting one for
+    a desktop file that does not exist yet does nothing. `xdg-settings check`
+    gives genuine idempotency: verified `changed=0` when correct, and the role
+    restores LibreWolf when the default is changed behind its back.
 - **New `roles/system_tuning`, capping core dump storage.** Black Mesa
   segfaults during shutdown on every exit — a known Source-engine-on-Linux bug
   in GL teardown, harmless in itself since the game has already quit — but each
