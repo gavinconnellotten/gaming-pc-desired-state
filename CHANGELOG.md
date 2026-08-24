@@ -3,6 +3,34 @@
 Dated log of what's been done to `gaming-pc`, and whether it's been codified
 into this repo yet.
 
+## 2026-08-24
+
+- **New `roles/system_tuning`, capping core dump storage.** Black Mesa
+  segfaults during shutdown on every exit — a known Source-engine-on-Linux bug
+  in GL teardown, harmless in itself since the game has already quit — but each
+  one writes a 300-500 MB core. Seven had accumulated 2.8 GB of the 3.1 GB in
+  `/var/lib/systemd/coredump`.
+  - **systemd's defaults are proportional to disk size**, which is the wrong
+    shape here: `MaxUse` defaults to 10% of the filesystem (~91 GB on this
+    volume) and `KeepFree` to 15% free (~137 GB). The `tmpfiles` rule ages the
+    directory at two weeks, far too slow when dumps arrive faster than that.
+  - Now capped at `MaxUse=1G` / `KeepFree=20G` via a drop-in under
+    `coredump.conf.d/`, so a systemd update doesn't conflict.
+  - **The role deletes nothing.** `systemd-coredump` enforces the cap when it
+    writes the next dump, so usage can sit above it until then; the role
+    reports current usage instead. Deleting crash evidence unattended isn't
+    this repo's habit.
+  - `system_tuning_coredump_process_size_max` can exclude large dumps
+    entirely, left unset — a big core might be one worth debugging, and the
+    cap already bounds the damage.
+- **The crash itself is not fixable** and is recorded as such, so nobody
+  spends an afternoon on it. The stack trace is a single unresolvable frame in
+  the shutdown path. Steam's own segfaults, by contrast, all date from
+  2026-08-09 during initial setup and have not recurred.
+- Two of my own corrections worth noting: `coredumpctl` has no `--vacuum-size`
+  option (that is `journalctl`), and a two-week `tmpfiles` aging rule does
+  exist — I had implied nothing was pruning these at all.
+
 ## 2026-08-21
 
 - **Idle timings relaxed and then separated**: dim at 10 minutes, blank at 20,

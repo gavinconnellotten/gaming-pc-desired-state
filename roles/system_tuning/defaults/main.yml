@@ -1,0 +1,26 @@
+---
+# Core dump storage limits.
+#
+# systemd's defaults are proportional to disk size, which is the wrong shape
+# for a 912 GB volume: MaxUse defaults to 10% of the filesystem (~91 GB) and
+# KeepFree to 15% free (~137 GB). Nothing prunes until those are reached.
+#
+# That matters because Black Mesa segfaults during shutdown on every single
+# exit — a known Source-engine-on-Linux bug, harmless in itself, but each one
+# writes a 300-500 MB core. Seven of them had reached 2.8 GB with no ceiling
+# in sight. A tmpfiles rule ages the directory at two weeks, far too slow to
+# help.
+system_tuning_manage_coredump_limits: true
+system_tuning_coredump_max_use: 1G
+system_tuning_coredump_keep_free: 20G
+
+# Skip storing dumps larger than this. Left unset by default: a large core
+# might be one you actually want to debug, and the MaxUse cap above already
+# bounds the damage. Set to something like 100M to exclude game crashes while
+# still capturing small ones — the two findmnt segfaults on 2026-08-15 were
+# 56 KB each and are the kind worth keeping.
+system_tuning_coredump_process_size_max: ""
+
+# A drop-in rather than editing /etc/systemd/coredump.conf directly, so a
+# systemd package update doesn't conflict with our changes.
+system_tuning_coredump_dropin: /etc/systemd/coredump.conf.d/50-cap-storage.conf

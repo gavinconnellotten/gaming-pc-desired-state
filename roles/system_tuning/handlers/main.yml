@@ -1,0 +1,6 @@
+---
+# systemd-coredump is invoked per-crash via the kernel core_pattern, so there
+# is no service to restart — but the manager must re-read the drop-in.
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true

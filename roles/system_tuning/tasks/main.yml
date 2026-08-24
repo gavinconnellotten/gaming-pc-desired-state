@@ -1,0 +1,72 @@
+---
+# ---------------------------------------------------------------------------
+# Core dump storage
+#
+# Caps how much disk systemd-coredump may consume. See defaults/main.yml for
+# why the stock defaults are unsuitable here.
+#
+# This role does NOT delete existing dumps. systemd-coredump enforces MaxUse
+# when it writes the next one, so the cap applies itself in time; and deleting
+# crash evidence unattended is the sort of thing this repo prefers to report
+# rather than do. The check at the end reports current usage instead.
+# ---------------------------------------------------------------------------
+- name: Ensure the coredump drop-in directory exists
+  ansible.builtin.file:
+    path: "{{ system_tuning_coredump_dropin | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: system_tuning_manage_coredump_limits | bool
+
+- name: Cap core dump storage
+  ansible.builtin.copy:
+    dest: "{{ system_tuning_coredump_dropin }}"
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by roles/system_tuning.
+      #
+      # systemd's defaults scale with disk size — 10% of the filesystem for
+      # MaxUse, 15% free for KeepFree — which on a 912 GB volume means ~91 GB
+      # of core dumps before anything is pruned. Black Mesa segfaults on every
+      # exit and writes 300-500 MB each time, so that ceiling is never reached
+      # and the directory just grows.
+      [Coredump]
+      MaxUse={{ system_tuning_coredump_max_use }}
+      KeepFree={{ system_tuning_coredump_keep_free }}
+      {% if system_tuning_coredump_process_size_max | length > 0 %}
+      ProcessSizeMax={{ system_tuning_coredump_process_size_max }}
+      {% endif %}
+  when: system_tuning_manage_coredump_limits | bool
+  notify: Reload systemd
+
+- name: Apply the reload now
+  ansible.builtin.meta: flush_handlers
+
+# Reported, not enforced: systemd-coredump prunes on write, so usage can sit
+# above the cap until the next crash. Worth knowing rather than assuming the
+# cap took effect retroactively.
+- name: Measure current core dump usage
+  ansible.builtin.command: du -sm /var/lib/systemd/coredump
+  register: system_tuning_coredump_usage
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: system_tuning_manage_coredump_limits | bool
+
+- name: Report core dump usage against the cap
+  ansible.builtin.debug:
+    msg: >-
+      Core dumps currently use
+      {{ system_tuning_coredump_usage.stdout.split() | first }} MB; cap is
+      {{ system_tuning_coredump_max_use }}.
+      {% if (system_tuning_coredump_usage.stdout.split() | first | int) > 1024 %}
+      That is above the cap. systemd-coredump prunes when it writes the next
+      dump, so this will come down on its own — or clear it now with:
+      sudo find /var/lib/systemd/coredump -name 'core.*' -mtime +1 -delete
+      {% else %}Within the cap.{% endif %}
+  when:
+    - system_tuning_manage_coredump_limits | bool
+    - system_tuning_coredump_usage.stdout | default('') | length > 0
