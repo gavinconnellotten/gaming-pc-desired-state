@@ -32,7 +32,8 @@ Claude Desktop Diagnostics
 ================================
 
 [PASS] Installed version: 1.32885.1-3.2.2.fc42
-[PASS] Version: in sync with the official pool (1.32885.1)
+[WARN] Version drift: official pool has 1.34493.1, this install packages 1.32885.1
+       Fix: upgrade via your package manager or download the newest release
 [PASS] Display server: Wayland (WAYLAND_DISPLAY=wayland-0)
        Desktop: KDE
        Mode: X11 via XWayland (default, for global hotkey support)

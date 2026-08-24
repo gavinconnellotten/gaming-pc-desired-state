@@ -10,7 +10,7 @@
 
 ## Mountpoint contents (entry counts, not names)
 
-/mnt/plex-movies: 69 entries
+/mnt/plex-movies: 76 entries
 /mnt/plex-music: 116 entries
 /mnt/plex-tv: 4 entries
 
@@ -90,4 +90,10 @@ samba-winbind-modules-4.24.2
 
 Aug 21 08:32:32 <host> systemd[1]: mnt-plex\x2dmovies.mount: Failed with result 'exit-code'.
 Aug 21 08:32:32 <host> systemd[1]: Failed to mount mnt-plex\x2dmovies.mount - /mnt/plex-movies.
+Aug 22 08:22:26 <host> systemd[1]: mnt-plex\x2dmovies.mount: Failed with result 'exit-code'.
+Aug 22 08:22:26 <host> systemd[1]: Failed to mount mnt-plex\x2dmovies.mount - /mnt/plex-movies.
+Aug 22 09:18:27 <host> kernel: CIFS: VFS: \\homeassistant.local sends on sock 000000001c229765 stuck for 15 seconds
+Aug 22 09:19:35 <host> kernel: CIFS: VFS: close cached dir rc -112
+Aug 22 09:21:06 <host> kernel: CIFS: VFS: \\homeassistant.local sends on sock 00000000a8d3d48b stuck for 15 seconds
+Aug 22 09:21:21 <host> kernel: CIFS: VFS: \\homeassistant.local sends on sock 00000000a8d3d48b stuck for 15 seconds
 
