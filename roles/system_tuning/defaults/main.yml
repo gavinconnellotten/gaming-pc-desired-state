@@ -14,12 +14,19 @@ system_tuning_manage_coredump_limits: true
 system_tuning_coredump_max_use: 1G
 system_tuning_coredump_keep_free: 20G
 
-# Skip storing dumps larger than this. Left unset by default: a large core
-# might be one you actually want to debug, and the MaxUse cap above already
-# bounds the damage. Set to something like 100M to exclude game crashes while
-# still capturing small ones — the two findmnt segfaults on 2026-08-15 were
-# 56 KB each and are the kind worth keeping.
-system_tuning_coredump_process_size_max: ""
+# Skip storing dumps larger than this entirely.
+#
+# Set to 100M on 2026-08-24. Black Mesa's exit crash writes 300-500 MB and is a
+# known, unfixable shutdown bug — there is nothing to learn from keeping it, and
+# even under the MaxUse cap it would evict anything smaller and more useful.
+# 100M still captures the crashes worth looking at: the two findmnt segfaults on
+# 2026-08-15 were 56 KB each.
+#
+# The trade-off is real. A large core from something you DO want to debug will
+# now be skipped rather than truncated, and the journal records the crash
+# either way — but the memory image is gone. Raise or clear this if that
+# matters more than the disk.
+system_tuning_coredump_process_size_max: "100M"
 
 # A drop-in rather than editing /etc/systemd/coredump.conf directly, so a
 # systemd package update doesn't conflict with our changes.

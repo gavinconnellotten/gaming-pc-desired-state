@@ -20,9 +20,13 @@ into this repo yet.
     writes the next dump, so usage can sit above it until then; the role
     reports current usage instead. Deleting crash evidence unattended isn't
     this repo's habit.
-  - `system_tuning_coredump_process_size_max` can exclude large dumps
-    entirely, left unset — a big core might be one worth debugging, and the
-    cap already bounds the damage.
+  - **`ProcessSizeMax=100M`** as well, so the game dumps are never written at
+    all. Under a 1 GB cap a single 500 MB core would evict everything smaller
+    and more useful; at 100M the crashes worth inspecting still get stored
+    (those findmnt ones were 56 KB) and the unfixable one does not. The
+    trade-off: a large core from something genuinely worth debugging is now
+    skipped rather than kept — the journal still records the crash, but the
+    memory image is gone.
 - **The crash itself is not fixable** and is recorded as such, so nobody
   spends an afternoon on it. The stack trace is a single unresolvable frame in
   the shutdown path. Steam's own segfaults, by contrast, all date from

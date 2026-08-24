@@ -43,13 +43,21 @@ sudo find /var/lib/systemd/coredump -name 'core.*' -mtime +1 -delete
 Note `coredumpctl` has **no** vacuum or delete option — it only lists and
 inspects. Cleanup is file deletion or waiting for the cap to apply.
 
-### Optionally skip large dumps entirely
+### Large dumps are skipped entirely
 
-`system_tuning_coredump_process_size_max` is unset by default. Setting it to
-e.g. `100M` excludes every game crash while still capturing small ones — the
-two `findmnt` segfaults on 2026-08-15 were 56 KB each and are the kind actually
-worth keeping. Left off because a large core might be one you genuinely want to
-debug, and the `MaxUse` cap already bounds the damage.
+`system_tuning_coredump_process_size_max` is **`100M`** as of 2026-08-24.
+
+Black Mesa's exit crash writes 300–500 MB and is a known, unfixable shutdown
+bug — there is nothing to learn from keeping it. Worse, under a 1 GB `MaxUse`
+cap a single one of those would evict everything smaller and more useful. At
+100M the game dumps are never written, while crashes worth inspecting still
+are: the two `findmnt` segfaults on 2026-08-15 were 56 KB each.
+
+**The trade-off is real.** A large core from something you *do* want to debug is
+now skipped rather than kept. The crash is still recorded in the journal —
+`coredumpctl list` will show it — but the memory image is gone, so there is
+nothing to load into a debugger. Raise or clear this value if that ever matters
+more than the disk space.
 
 ## Verifying by hand
 
