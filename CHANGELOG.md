@@ -3,6 +3,34 @@
 Dated log of what's been done to `gaming-pc`, and whether it's been codified
 into this repo yet.
 
+## 2026-09-01
+
+- **The 640x480-on-wake fault recurred, and DDC/CI was not the cause.** DP-2
+  came back from blanking with no EDID again — one mode, 640x480 — despite
+  `allowDdcCi=false` and zero `i2c` retry lines in the journal. The August fix
+  removed a real delay but never addressed the root cause.
+- **No software can recover it**, established rather than assumed:
+  `kscreen-doctor` disable/enable failed, and so did
+  `echo detect > /sys/class/drm/card1-DP-2/status`, which is the deepest
+  re-probe the kernel offers. Only power-cycling the monitor works. That also
+  means an auto-healing service is not worth building — it would have nothing
+  to call.
+- **It is hardware.** The DP link watcher recorded **63 disconnects on DP-2
+  against 6 on DP-3** — same GPU, driver, KDE config and power settings, so the
+  only variables that differ are cable, monitor port and GPU port.
+- **New `scripts/test-display-wake.sh`** drives DPMS directly instead of
+  waiting 20 minutes for the real blank timeout, and counts how often each
+  connector returns without an EDID. The fault is intermittent, so the failure
+  *rate* is the measurement — a single clean cycle proves nothing.
+- **DP-2's cable replaced.** 5/5 clean cycles afterwards, but with no
+  before-measurement (the script did not exist while the old cable was still
+  fitted) that is suggestive rather than conclusive. The real evidence will be
+  the 63:6 ratio normalising over a week of ordinary use; the watcher log is
+  marked at the cable change so the comparison is countable.
+- Each failure also writes a fresh junk 640x480 profile into
+  `kwinoutputconfig.json`. That makes the fault stickier but is not its cause:
+  with no EDID the kernel offers 640x480 regardless of what KWin has saved.
+
 ## 2026-08-24
 
 - **Brave removed, LibreWolf installed and set as default**, all in
