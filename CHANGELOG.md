@@ -9,6 +9,13 @@ into this repo yet.
   in two days, each within seven seconds of the configured hour:
   2 Sep 21:51, 3 Sep 09:38, 3 Sep 17:50, 4 Sep 08:46, 4 Sep 09:51. The last
   suspend before the fix was 31 Aug 16:25.
+- **Auto-login verified** on the 14:44 reboot. The session started at 14:44:52,
+  52 seconds after boot, and **no `plasmalogin` greeter session was created at
+  all** — compare 2 Sep, where a greeter session sat for 49 minutes with no
+  power management. PowerDevil was active and uninhibited from session start.
+  This also confirms plasmalogin does read `/etc/plasmalogin.conf.d/`, which
+  could not be proven from the binary beforehand and was inferred only from the
+  package shipping the two-tier drop-in layout.
 
 ## 2026-09-02
 
