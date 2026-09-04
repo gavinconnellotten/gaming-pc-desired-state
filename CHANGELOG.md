@@ -3,6 +3,42 @@
 Dated log of what's been done to `gaming-pc`, and whether it's been codified
 into this repo yet.
 
+## 2026-09-05
+
+- **DP-2 cable: first real reading, and it looks like the fix.** Over the six
+  wake cycles since the cable was changed on 1 Sep 14:22, the **640x480 fault
+  has not occurred once**. One genuine DP-2 disconnect episode (5 Sep 08:24),
+  and it came back with full EDID — 38 modes at 2560x1440, same as DP-3. Zero
+  DP-3 episodes. Before the change it was **14 DP-2 episodes across 15 wake
+  cycles**, near enough one every wake.
+- **Count episodes, not log lines.** The 63:6 figure recorded on 2026-09-01
+  counts log *lines*, and each episode writes roughly six duplicate lines
+  within the same second. Counted as distinct episodes the same period is
+  **14:2**. Both are real measurements and the ratio is similar (10.5:1 vs
+  7:1), but they are not interchangeable — compare like with like. Group by
+  timestamp before counting:
+
+  ```bash
+  awk '/cable replaced/{f=1;next} f && /DISCONNECTED, card1-DP-2/{print $1" "$2}' \
+      ~/.local/state/dp-link-events.log | sort -u | wc -l
+  ```
+
+- **Two false positives to discount when reading this log.** The DP-2 entry at
+  2 Sep 20:51:26 coincides exactly with a PowerDevil restart, so it is
+  libddcutil re-detecting displays rather than the monitor dropping its link —
+  anything that restarts PowerDevil will fake a disconnect. And the `EDID
+  colorimetry ... is invalid` warnings in the journal are emitted on every
+  wake by these monitors and are unrelated to the fault; the fault's signature
+  is a connector coming back with **one** mode, not a colorimetry complaint.
+- **Not yet conclusive.** Six wake cycles is short of the week of ordinary use
+  the verdict was deferred to on 1 Sep. The watcher is still running as a
+  lingering user service; re-check in a few days.
+- **One stale artefact left alone:** a single junk 640x480 profile remains in
+  `~/.config/kwinoutputconfig.json`. It cannot be dated, and nothing else
+  suggests a recurrence, so it is almost certainly a leftover from before the
+  cable change. Not cleaned out, since removing it would destroy the only
+  record of how many junk profiles the fault produced.
+
 ## 2026-09-04
 
 - **Idle suspend confirmed working, with a game running.** Five clean suspends
