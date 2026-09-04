@@ -60,7 +60,7 @@ diagnostics gotcha below; this distinction is load-bearing.
 | NVIDIA driver | Installed out-of-band, deliberately unmanaged |
 | Dotfiles / KDE settings | **Captured, deliberately not managed** — see below |
 | Gaming stack | **Post-install additions managed** — `roles/gaming`. Nobara's own packages deliberately unmanaged |
-| Power / idle behaviour | **Managed** — `roles/power_management`. Depends on a BIOS setting the role can't apply |
+| Power / idle behaviour | **Managed and verified** — `roles/power_management`. Includes auto-login. Depends on a BIOS setting the role can't apply |
 | Desktop apps | **Managed** — `roles/desktop_apps`. qBittorrent, Proton VPN, Proton Mail, LibreWolf; removes Brave |
 | System tuning | **Managed** — `roles/system_tuning`. Core dump storage caps |
 
@@ -180,6 +180,50 @@ SMB credentials.
 `ErP Ready` was **not** the cause and was already Disabled. It got suspected
 because the keyboard LEDs go dark in S3, which is a consequence of
 `Resume By USB Device` being off. Recorded so nobody re-tests it.
+
+### Two things stopped it working that were not settings at all
+
+Resolved 2026-09-02, verified 2026-09-04 by five clean suspends within seven
+seconds of the configured hour. Both are worth knowing before touching a timer
+value, because neither is visible in `powerdevilrc`.
+
+**A running game blocks everything, by design.** SDL and `gameoverlayui` each
+register a "Playing a game" inhibition for as long as a game is open — menu
+included — so a game left running means a machine that never sleeps.
+`roles/gaming` now sets `SDL_VIDEO_ALLOW_SCREENSAVER=1`, which removes both
+(the `gameoverlayui` one goes too, which was not obvious in advance). The
+tradeoff is real but does not apply here: it would permit blanking during
+gamepad-only play, and this machine is keyboard-and-mouse.
+
+That inhibition can also **outlive the game**. Killing a hung game leaves it
+held, because the D-Bus connection belongs to the surviving Steam client rather
+than the dead game. `systemctl --user restart plasma-powerdevil.service` clears
+it and re-reads the config.
+
+**The login screen has no power management whatsoever.** The `plasmalogin`
+greeter runs as its own user and ships no PowerDevil, so a machine sitting at
+it stays fully awake indefinitely — and no user-level config can reach it.
+`roles/power_management` closes this with auto-login, written as a drop-in to
+`/etc/plasmalogin.conf.d/` rather than into the package-owned
+`/etc/plasmalogin.conf`. The role refuses to write if the named session does
+not exist, since that produces a login loop at the next boot.
+
+### Diagnosing this, and one trap
+
+Run **`scripts/check-power-inhibitors.sh`** first. It exists because
+`systemd-inhibit --list` does **not** show application inhibitions — they live
+in KDE's policy agent, so the obvious command reports nothing and everything
+looks healthy. The script also flags requests left behind by an exited app.
+
+Two measurement traps, both paid for:
+
+- **PowerDevil does not log dim or blank** at default verbosity. Journal
+  silence is not evidence. Sample brightness instead.
+- **Do not shorten the timers to get a fast test.** Loading a shortened value
+  means restarting PowerDevil, and that restart disturbs the idle chain — a
+  60-second dim test showed nothing and was read as "idle detection is broken",
+  which was wrong, and led to a hardware accusation against the USB-to-PS/2
+  adapter that was also wrong. Measure real behaviour over real timings.
 
 Two things worth not rediscovering:
 

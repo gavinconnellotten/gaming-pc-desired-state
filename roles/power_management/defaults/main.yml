@@ -76,3 +76,25 @@ power_plasma_settings:
     group_args: ['--group', 'Daemon']
     key: LockOnResume
     value: "{{ power_lock_on_resume | lower }}"
+
+# Auto-login.
+#
+# The login screen runs as a SEPARATE user (the plasmalogin greeter) with no
+# PowerDevil at all — verified 2026-09-02 by finding zero PowerDevil journal
+# entries across a 49-minute greeter session. A machine left sitting at that
+# screen never dims, never blanks and never suspends; it stays fully awake
+# indefinitely. None of the timings above apply to it, and they cannot be made
+# to: the greeter is a different user and never reads this user's config.
+#
+# Logging straight through to the desktop hands the machine to PowerDevil at
+# boot, which is the only practical way to close that gap.
+#
+# Accepted tradeoff, agreed with the owner 2026-09-02: no password at power-on.
+# The lock screen still applies after power_lock_timeout_min of idle and on
+# resume from suspend, so the machine is still protected once it has been left.
+power_autologin: true
+power_autologin_session: plasma
+
+# A drop-in, not an edit to /etc/plasmalogin.conf — that file is owned by the
+# plasma-login-manager package and would be replaced on update.
+power_autologin_dropin: /etc/plasmalogin.conf.d/10-autologin.conf

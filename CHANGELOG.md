@@ -3,6 +3,57 @@
 Dated log of what's been done to `gaming-pc`, and whether it's been codified
 into this repo yet.
 
+## 2026-09-04
+
+- **Idle suspend confirmed working, with a game running.** Five clean suspends
+  in two days, each within seven seconds of the configured hour:
+  2 Sep 21:51, 3 Sep 09:38, 3 Sep 17:50, 4 Sep 08:46, 4 Sep 09:51. The last
+  suspend before the fix was 31 Aug 16:25.
+
+## 2026-09-02
+
+- **A running game was blocking all power management, by design.** SDL and
+  `gameoverlayui` each register a "Playing a game" inhibition with KDE's policy
+  agent for as long as a game is open — menu included. Measured over 18 minutes
+  with Black Mesa live: brightness constant, DPMS never off, nothing fired.
+- **Fixed in `roles/gaming`** with `SDL_VIDEO_ALLOW_SCREENSAVER=1` written to
+  `~/.config/environment.d/51-sdl-allow-screensaver.conf`
+  (`gaming_allow_screensaver_during_games`). Verified afterwards: game running,
+  inhibition list empty. It removed the `gameoverlayui` inhibition too, which
+  was not certain going in. Tradeoff accepted knowingly — this machine is
+  keyboard-and-mouse only, so the gamepad case the inhibition protects does not
+  arise here.
+- **The login screen has no power management at all.** The `plasmalogin`
+  greeter runs as its own user (uid 985) and ships no PowerDevil — zero
+  PowerDevil journal entries across a 49-minute greeter session on 2 Sep. A
+  machine left at the login screen never dims, blanks or suspends, and cannot
+  be made to by any user-level config.
+- **Fixed in `roles/power_management`** with auto-login via
+  `/etc/plasmalogin.conf.d/10-autologin.conf` (`power_autologin`). A drop-in,
+  not an edit to the package-owned `/etc/plasmalogin.conf`. The role refuses to
+  write if the named session does not exist, since that would produce a login
+  loop at the next boot. **Not yet verified — the machine has not rebooted
+  since.**
+- **New `scripts/check-power-inhibitors.sh`.** Answers "why isn't this machine
+  sleeping?" in one command. It exists because `systemd-inhibit --list` does
+  **not** show application inhibitions — those live in KDE's policy agent, so
+  the obvious command shows nothing and everything looks fine. It also flags
+  requests left behind by an app that has exited, which is a real failure mode:
+  see 2026-09-01 below.
+- **A stale inhibition survived the game that registered it.** Killing the hung
+  Black Mesa on 1 Sep left both "Playing a game" requests held, because the
+  D-Bus connection belongs to the surviving Steam client rather than the dead
+  game. Power management stayed blocked for a day with no indication why.
+  Cleared with `systemctl --user restart plasma-powerdevil.service`. Largely
+  pre-empted now that games no longer register the inhibition at all.
+- **A diagnostic mistake worth not repeating.** Shortening the dim timeout to
+  60s to test quickly requires restarting PowerDevil to load it, and that
+  restart appears to disturb the idle chain — the test showed no dim and was
+  read as "idle detection is broken", wrongly. The first real suspend landed
+  exactly 60 minutes after the test restored the timers, which is what gave it
+  away. **Measure the machine's real behaviour over real timings**; do not
+  restart PowerDevil mid-measurement.
+
 ## 2026-09-01
 
 - **The 640x480-on-wake fault recurred, and DDC/CI was not the cause.** DP-2

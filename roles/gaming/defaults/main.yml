@@ -78,3 +78,19 @@ gaming_manage_shader_cache: true
 gaming_shader_cache_size_bytes: 12000000000
 gaming_shader_cache_file: 50-nvidia-shader-cache.conf
 
+# Let the machine idle out (dim / blank / sleep) even while a game is open.
+#
+# By default SDL — which Black Mesa and most Steam games use — tells the desktop
+# "don't blank, don't sleep" for as long as the game is running, menu or not.
+# That is why gaming-pc never suspended while a game sat idle.
+#
+# Setting this does NOT stop keyboard and mouse activity from keeping the
+# machine awake; that is handled separately by the idle timer. It only removes
+# the blanket "a game is open" block.
+#
+# The tradeoff: a game played entirely on a gamepad, with no keyboard or mouse
+# input, could now blank mid-session. This machine is keyboard-and-mouse only,
+# so that case does not apply here.
+gaming_allow_screensaver_during_games: true
+gaming_screensaver_file: 51-sdl-allow-screensaver.conf
+

@@ -122,3 +122,81 @@
       Screens dim at {{ power_display_dim_sec }}s, blank and lock at
       {{ power_display_off_sec }}s, suspend after {{ power_suspend_idle_sec }}s.
       Plasma may need a session restart to pick up changed values.
+
+# ---------------------------------------------------------------------------
+# Auto-login
+#
+# Closes the one gap this role otherwise cannot reach: the greeter runs as its
+# own user with no power management, so time spent at the login screen is time
+# the machine stays fully awake. See defaults/main.yml for the security
+# tradeoff this represents.
+# ---------------------------------------------------------------------------
+- name: Resolve the desktop user for auto-login
+  ansible.builtin.command: id -un
+  become: false
+  changed_when: false
+  check_mode: false
+  register: power_login_user
+  when: power_autologin | bool
+
+# Same trap as the per-user settings above: run under sudo and this resolves to
+# root. Auto-logging in as root is not a mistake to make silently.
+- name: Fail if auto-login would be configured for root
+  ansible.builtin.fail:
+    msg: >-
+      Auto-login resolved to root. Run the playbook as your desktop user with
+      --ask-become-pass, not under sudo.
+  when:
+    - power_autologin | bool
+    - power_login_user.stdout == 'root'
+
+- name: Check the configured session actually exists
+  ansible.builtin.stat:
+    path: "/usr/share/wayland-sessions/{{ power_autologin_session }}.desktop"
+  register: power_session_file
+  when: power_autologin | bool
+
+# Naming a session that does not exist produces a machine that boots into a
+# login loop. Refuse rather than write a file that breaks the next boot.
+- name: Fail if the configured session does not exist
+  ansible.builtin.fail:
+    msg: >-
+      power_autologin_session is "{{ power_autologin_session }}" but
+      /usr/share/wayland-sessions/{{ power_autologin_session }}.desktop does
+      not exist. Auto-login would fail at the next boot.
+  when:
+    - power_autologin | bool
+    - not power_session_file.stat.exists
+
+- name: Ensure the plasmalogin drop-in directory exists
+  ansible.builtin.file:
+    path: "{{ power_autologin_dropin | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: power_autologin | bool
+
+- name: Configure auto-login so the greeter is never left sitting awake
+  ansible.builtin.copy:
+    dest: "{{ power_autologin_dropin }}"
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by roles/power_management.
+      #
+      # The plasmalogin greeter runs as its own user with no power management
+      # at all, so a machine left at the login screen never dims, blanks or
+      # suspends. Logging straight in hands the session to PowerDevil, which
+      # applies the idle timings this role sets.
+      [Autologin]
+      User={{ power_login_user.stdout }}
+      Session={{ power_autologin_session }}
+  when: power_autologin | bool
+
+- name: Remove the auto-login drop-in when disabled
+  ansible.builtin.file:
+    path: "{{ power_autologin_dropin }}"
+    state: absent
+  when: not (power_autologin | bool)

@@ -33,7 +33,7 @@
   changed_when: false
   check_mode: false
   register: gaming_user
-  when: gaming_manage_proton | bool or gaming_manage_shader_cache | bool
+  when: gaming_manage_proton | bool or gaming_manage_shader_cache | bool or gaming_allow_screensaver_during_games | bool
 
 # Refuses rather than warns. A Proton build unpacked into /root is invisible to
 # Steam and silently useless — better to stop than to report success.
@@ -44,7 +44,7 @@
       build or a shader cache setting placed there is silently useless. Run the
       playbook as your desktop user with --ask-become-pass, not under sudo.
   when:
-    - gaming_manage_proton | bool or gaming_manage_shader_cache | bool
+    - gaming_manage_proton | bool or gaming_manage_shader_cache | bool or gaming_allow_screensaver_during_games | bool
     - gaming_user.stdout == 'root'
 
 # getent rather than ansible_env.HOME: facts are gathered with the play's
@@ -160,13 +160,13 @@
   check_mode: false
   register: gaming_passwd_shader
   when:
-    - gaming_manage_shader_cache | bool
+    - gaming_manage_shader_cache | bool or gaming_allow_screensaver_during_games | bool
     - gaming_home is not defined
 
 - name: Set the shader cache config path
   ansible.builtin.set_fact:
     gaming_env_dir: "{{ (gaming_home | default(gaming_passwd_shader.stdout.split(':')[5])) }}/.config/environment.d"
-  when: gaming_manage_shader_cache | bool
+  when: gaming_manage_shader_cache | bool or gaming_allow_screensaver_during_games | bool
 
 - name: Ensure environment.d exists
   ansible.builtin.file:
@@ -174,7 +174,7 @@
     state: directory
     mode: "0755"
   become: false
-  when: gaming_manage_shader_cache | bool
+  when: gaming_manage_shader_cache | bool or gaming_allow_screensaver_during_games | bool
 
 - name: Configure the NVIDIA shader cache size
   ansible.builtin.copy:
@@ -205,3 +205,43 @@
     - gaming_manage_shader_cache | bool
     - gaming_shader_cache_written.changed
 
+# ---------------------------------------------------------------------------
+# Let the machine idle out while a game is open
+#
+# SDL inhibits screen blanking and sleep for as long as a game is running, even
+# sitting at a menu. That is why this machine never suspended with Black Mesa
+# left open. This does not affect keyboard/mouse activity keeping it awake.
+# ---------------------------------------------------------------------------
+- name: Allow the screen to blank and the machine to sleep while games run
+  ansible.builtin.copy:
+    dest: "{{ gaming_env_dir }}/{{ gaming_screensaver_file }}"
+    mode: "0644"
+    content: |
+      # Managed by roles/gaming. SDL otherwise tells the desktop "don't blank,
+      # don't sleep" for the whole time a game is open, menu included, so the
+      # idle timers in roles/power_management never fire.
+      #
+      # Real input still keeps the machine awake — this only removes the
+      # blanket block, it does not shorten or bypass the idle timers.
+      SDL_VIDEO_ALLOW_SCREENSAVER=1
+  become: false
+  register: gaming_screensaver_written
+  when: gaming_allow_screensaver_during_games | bool
+
+- name: Remove the screensaver override when disabled
+  ansible.builtin.file:
+    path: "{{ gaming_env_dir }}/{{ gaming_screensaver_file }}"
+    state: absent
+  become: false
+  when: not (gaming_allow_screensaver_during_games | bool)
+
+- name: Note that the screensaver change needs a new session
+  ansible.builtin.debug:
+    msg: >-
+      SDL_VIDEO_ALLOW_SCREENSAVER written, but environment.d is only read when
+      the systemd user manager starts. Log out and back in, then relaunch Steam
+      from the new session. Verify with
+      `systemctl --user show-environment | grep SDL_VIDEO_ALLOW`.
+  when:
+    - gaming_allow_screensaver_during_games | bool
+    - gaming_screensaver_written.changed
