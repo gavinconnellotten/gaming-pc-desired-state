@@ -10,3 +10,8 @@
     - power_management
     - desktop_apps
     - system_tuning
+    # Manages the gaming-pc side of the Home Assistant relationship — the
+    # backup pull and its timer. Home Assistant itself is deliberately NOT an
+    # Ansible host: HAOS ships no Python, so no module can run there. See
+    # roles/homeassistant/README.md.
+    - homeassistant

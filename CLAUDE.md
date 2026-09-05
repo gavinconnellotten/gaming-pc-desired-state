@@ -63,6 +63,8 @@ diagnostics gotcha below; this distinction is load-bearing.
 | Power / idle behaviour | **Managed and verified** — `roles/power_management`. Includes auto-login. Depends on a BIOS setting the role can't apply |
 | Desktop apps | **Managed** — `roles/desktop_apps`. qBittorrent, Proton VPN, Proton Mail, LibreWolf; removes Brave |
 | System tuning | **Managed** — `roles/system_tuning`. Core dump storage caps |
+| Home Assistant | **Managed from here** — `roles/homeassistant`. Weekly config backup pulled to this machine. HAOS is deliberately *not* an Ansible host |
+| Health reporting | `scripts/check-gaming-pc.sh`, `scripts/check-homeassistant.sh` — read-only, plus a weekly Claude routine |
 
 ## Manage the delta, not the distribution
 
@@ -236,6 +238,58 @@ Two things worth not rediscovering:
   setting each in System Settings and reading back what was written. An early
   guess that `8` meant "Lock screen" was wrong, and getting `AutoSuspendAction`
   wrong means a machine that shuts down after an hour idle.
+
+## The second machine: Home Assistant
+
+`homeassistant.local` (192.168.68.117) is a mini PC running **Home Assistant
+OS**, serving the three SMB shares this desktop mounts. `roles/homeassistant`
+manages the relationship; `roles/homeassistant/README.md` has the detail.
+
+**It is not an Ansible host and cannot be one.** HAOS ships no Python, so no
+module can run there — only `raw`, which is shell with extra steps and none of
+Ansible's idempotency. The role manages the gaming-pc side and reaches across
+over SSH. Don't add an inventory group for it: a group that can only run `raw`
+misrepresents what this repo controls.
+
+**No API token is needed.** Inside the SSH session the Supervisor API is at
+`http://supervisor` with `$SUPERVISOR_TOKEN` already exported, so the SSH key
+is the only credential. A long-lived token exists at
+`/etc/homeassistant/api-token` from the original setup; nothing reads it.
+
+**The mounts look circular and are not wrong.** Home Assistant mounts CIFS
+shares from its own Samba add-on, because HAOS's Supervisor can only mount CIFS
+and NFS as media storage — looping through the local Samba server is the
+documented way to expose a USB disk to add-ons. The consequence that matters:
+a Samba NAS2 restart drops HA's own media mounts and Plex sees empty libraries.
+That is why every add-on except Music Assistant has auto-update disabled.
+
+**Samba NAS2 has two separate `auto_update` settings** — the Supervisor
+property and its own internal option. Turning off one looks done.
+
+**Media is deliberately not backed up.** Backups are config-only: 60 MB against
+8900 MB for a full one, which is mostly Ollama's models. The ~67 GB TV library
+on the HA system disk is therefore protected by nothing — an accepted risk, not
+an oversight.
+
+## Updates: report, don't apply
+
+The rule for both machines. Automate noticing; leave applying to the tool that
+understands the system.
+
+- **gaming-pc:** `nobara-sync cli`, never plain `dnf` or the App Centre.
+- **Home Assistant:** everything pinned except Music Assistant. Core and HAOS
+  have no auto-update setting; the Supervisor updates itself by design.
+
+**The reason this matters, concretely:** on 2026-09-05 a kernel was installed
+with no NVIDIA module built for it, because `40-dkms.install` fires when the
+*kernel* is installed and `kernel-devel` arrived fourteen minutes later in a
+separate transaction. Nothing retried. The only visible symptom was "reboot
+pending", which reads like good news. `scripts/check-gaming-pc.sh` now refuses
+to say "safe to reboot" unless the module exists — run it before rebooting
+after any kernel update.
+
+Three kernels are kept, so a driverless boot is recoverable by choosing the
+previous kernel in GRUB. Worth knowing before it happens late at night.
 
 ## Gotchas discovered the hard way
 

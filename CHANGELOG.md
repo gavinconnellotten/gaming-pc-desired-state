@@ -3,6 +3,160 @@
 Dated log of what's been done to `gaming-pc`, and whether it's been codified
 into this repo yet.
 
+## 2026-09-05 — Home Assistant brought into scope
+
+The repo now covers a second machine: the mini PC running Home Assistant OS
+that serves the media this desktop mounts. Not as an Ansible host — see below.
+
+### A near-miss found within a minute of the first report running
+
+`scripts/check-gaming-pc.sh` was written, run once, and immediately found that
+**kernel 7.2.3-200 was installed with no NVIDIA module built for it**. Rebooting
+would have produced a machine with no graphics driver.
+
+The cause was a race, visible only in install timestamps:
+
+```
+08:52:04  kernel-core-7.2.3 installed   -> DKMS hook fires, no kernel-devel yet
+08:52:33  akmods@7.2.3 fails: "kernel-devel required"
+09:06:27  kernel-devel-7.2.3 installed  -> 14 min later, separate transaction
+```
+
+`/usr/lib/kernel/install.d/40-dkms.install` only runs when the **kernel** is
+installed. Nothing re-runs it when `kernel-devel` arrives afterwards, and
+nothing retried. The only visible symptom beforehand was a cheerful "reboot
+pending". Fixed with `sudo dkms autoinstall -k 7.2.3-200.nobara.fc44.x86_64`.
+
+**The lesson for updates:** apply with `nobara-sync cli`, not the App Centre or
+plain dnf. Nobara's updater does the post-update driver rebuild; the other
+paths can install a kernel without it. Also worth knowing that three kernels
+are kept, so a driverless boot is recoverable by picking the previous kernel
+from GRUB rather than being a crisis.
+
+### Home Assistant is not, and cannot be, an Ansible host
+
+HAOS ships no Python, so no Ansible module can run there — only `raw`, which is
+shell with extra steps. `roles/homeassistant` therefore manages the **gaming-pc
+side** and reaches across over SSH. No second inventory group was added,
+because a group that can only ever run `raw` misrepresents what the repo
+controls.
+
+**No API token is needed.** One was created and stored root-owned `0600` at
+`/etc/homeassistant/api-token`, then turned out to be unnecessary: inside the
+SSH session the Supervisor API is on `http://supervisor` with
+`$SUPERVISOR_TOKEN` already exported. One credential to keep working across a
+rebuild instead of two. Nothing reads that file now.
+
+### Getting SSH on took three attempts, and the log was the only way to tell
+
+The Terminal & SSH add-on **refuses to start at all** without a login
+configured — `FATAL: You need to setup a login!` — and then crash-loops, which
+also takes the web terminal down. Two traps:
+
+- The **Network** card has its own Save button, separate from the YAML above
+  it. Saving the config does not save the port, and the add-on then serves only
+  the web terminal while appearing healthy.
+- In the visual editor, `authorized_keys` is a list needing a row added; an
+  empty row saves as nothing.
+
+Port 22 refusing connections while the add-on shows "started" means the
+container is crash-looping. The add-on's Log tab is the only place that says so.
+
+### Storage topology, and why it is not the misconfiguration it looks like
+
+```
+NVMe (system disk)
+├── /backup           Supervisor backups
+└── /media/TV SHOWS   local, ~67 GB, shared as MEDIA/TV SHOWS
+
+USB disk 1  ──> Samba NAS2 shares as ELEMENTS ──┐ mounted BACK over CIFS from
+USB disk 2  ──> Samba NAS2 shares as SSD ───────┘ 172.30.32.1 into /media
+```
+
+Home Assistant mounts CIFS shares from its **own** Samba add-on. This was first
+read as a fragility and flagged as the likely cause of the reported crashes.
+That was unfair: HAOS's Supervisor can only mount CIFS and NFS as media
+storage, so looping through the local Samba server is the documented way to
+make a USB disk visible to add-ons. It is correct, not a mistake.
+
+The real consequence stands: **a Samba NAS2 restart drops Home Assistant's own
+media mounts**, and Plex then sees empty libraries. Hence the auto-update work
+below, and why `check-homeassistant.sh` reports mount state.
+
+### Add-on updates pinned, except Music Assistant
+
+Every add-on was set to auto-update, including Samba NAS2 — the component all
+media access depends on — and Terminal & SSH, the route Ansible uses.
+
+**Samba NAS2 had two separate `auto_update` settings**: the Supervisor-level
+property and its own internal option. Turning off only the obvious one looks
+done while the add-on keeps updating itself. Both are off now.
+
+Pinned: Samba NAS2, Plex, Terminal & SSH, Whisper, Piper, openWakeWord, Ollama,
+Bluetooth Audio Manager. Left automatic: Music Assistant.
+
+**Correction to advice given earlier the same day:** moving Samba NAS2 off its
+`2026.7.0-rc11` release candidate is *not possible* — `version_latest` is also
+`rc11`, so the repository ships no stable build. With auto-update off it at
+least will not move unattended.
+
+Core, OS and Supervisor were never auto-updating: **Core and HAOS have no such
+setting**, and the Supervisor updates itself by design.
+
+### Backups: there were none worth the name
+
+All 15 were `partial`. Twelve were pre-update add-on snapshots the Supervisor
+takes automatically — useful, but not a backup strategy. Three were "Automatic
+backup" at ~8.9 GB, the newest a week old.
+
+The 8.9 GB is almost entirely add-on payload; Ollama's models alone are ~8 GB.
+A config-only backup is **60 MB**:
+
+| | Size |
+|---|---|
+| Full "Automatic backup" | ~8900 MB |
+| Config only | ~60 MB |
+
+`ha backups new` cannot express "config and nothing else" — `--app`/`--folders`
+make a partial of only those, and passing neither makes a full backup. So the
+script calls `POST /backups/new/partial` with `homeassistant: true` and empty
+addons/folders directly.
+
+Purged 14 superseded backups, reclaiming **26 GB** (34.8 GB to 8.8 GB; the
+system disk went from 61% to 49% used). Kept the 29 Aug Automatic backup as the
+only copy of add-on data, plus the new config-only one.
+
+**Media is deliberately not backed up**, at the owner's direction. Stated
+plainly because it is a real exposure: the ~67 GB TV library on the HA system
+disk is protected by nothing, and a failed NVMe would take the config, the
+local backups and the TV library together.
+
+### What was added
+
+- **`roles/homeassistant`** — weekly config-only backup pulled here, systemd
+  **user** timer (Sat 09:30, `Persistent=true` because this machine sleeps and
+  will miss it). User scope because the desktop user's SSH key is the one Home
+  Assistant authorises; a system timer would run as root with the wrong key.
+  Pruning only ever deletes backups matching its own name prefix, so a
+  retention sweep cannot remove hand-made or Supervisor backups.
+- **`scripts/check-homeassistant.sh`** and **`scripts/check-gaming-pc.sh`** —
+  read-only reports, written to be read by someone deciding what to update.
+- A weekly Claude routine, Saturdays at 10:09, running both and notifying.
+
+Verified end to end: backup created, size settled, downloaded to `.part`,
+byte-count matched, tar opened, renamed. 11 seconds, 62 MB. Role is idempotent.
+
+### Two bugs found in this repo's own tooling
+
+- **`dkms status | grep -q` under `set -o pipefail` silently reads false.**
+  `grep -q` exits on first match, `dkms` takes SIGPIPE, and the pipeline
+  reports failure — so the NVIDIA check was skipped in silence. A check that
+  quietly does nothing is worse than no check. Capture to a variable and test
+  that instead.
+- **Reporting an idle `x-systemd.automount` share as "NOT MOUNTED"** is wrong;
+  detaching after the idle timeout is the design. Check the automount unit's
+  state, not `findmnt`.
+
 ## 2026-09-05
 
 - **DP-2 cable: first real reading, and it looks like the fix.** Over the six

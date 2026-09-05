@@ -1,0 +1,184 @@
+---
+# Manages the gaming-pc side of the Home Assistant relationship. Nothing here
+# touches the HA machine's configuration — see defaults/main.yml for why HAOS
+# cannot be an Ansible host.
+#
+# become: false throughout. The SSH key, the timer and the backups all live
+# under the user's home; run under sudo they would be created for root, where
+# the desktop session never looks, and the play would report success. Same trap
+# as roles/gaming and claude_desktop.
+
+- name: Determine the desktop user
+  ansible.builtin.command: id -un
+  become: false
+  changed_when: false
+  check_mode: false
+  register: ha_user_check
+
+- name: Fail if this would be applied to root
+  ansible.builtin.fail:
+    msg: >-
+      This would install the backup timer into root's systemd, using root's SSH
+      key — which is not the key authorised on Home Assistant. Run the playbook
+      as your desktop user with --ask-become-pass, not under sudo.
+  when: ha_user_check.stdout == 'root'
+
+- name: Ensure the backup directory exists
+  ansible.builtin.file:
+    path: "{{ ha_backup_dir }}"
+    state: directory
+    mode: "0750"
+  become: false
+
+- name: Ensure ~/.local/bin exists
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.local/bin"
+    state: directory
+    mode: "0755"
+  become: false
+
+- name: Install the backup script
+  ansible.builtin.copy:
+    src: ha-backup.sh
+    dest: "{{ ansible_env.HOME }}/.local/bin/ha-backup.sh"
+    mode: "0755"
+  become: false
+
+# ---------------------------------------------------------------------------
+# Verify we can actually reach Home Assistant before promising a backup timer.
+# Reports rather than fails: a laptop-off-network case should not break the
+# whole playbook run, but a silently broken backup is worse than a loud one.
+# ---------------------------------------------------------------------------
+- name: Check SSH access to Home Assistant
+  ansible.builtin.command: >-
+    ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes
+    {{ ha_ssh_user }}@{{ ha_host }} true
+  become: false
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  register: ha_ssh_check
+
+- name: Report Home Assistant reachability
+  ansible.builtin.debug:
+    msg: >-
+      {% if ha_ssh_check.rc == 0 %}
+      Home Assistant reachable at {{ ha_ssh_user }}@{{ ha_host }}.
+      {% else %}
+      WARNING: cannot SSH to {{ ha_ssh_user }}@{{ ha_host }} (rc={{ ha_ssh_check.rc }}).
+      The timer will be installed but every run will fail. Check that the
+      Terminal & SSH add-on is running, that its Network port is set to 22,
+      and that this machine's key is in its authorized_keys. The host key must
+      also already be in ~/.ssh/known_hosts — StrictHostKeyChecking is on
+      deliberately, so a first connection has to be made by hand.
+      {% endif %}
+
+# ---------------------------------------------------------------------------
+# systemd user timer
+#
+# User scope, not system: it runs as the desktop user so it can use that user's
+# SSH key, which is the one Home Assistant authorises. A system timer would run
+# as root with root's key, which is not authorised.
+#
+# This depends on lingering being enabled for the user, which it already is for
+# the DP link watcher. Checked below rather than assumed.
+# ---------------------------------------------------------------------------
+- name: Install the backup service unit
+  ansible.builtin.copy:
+    dest: "{{ ansible_env.HOME }}/.config/systemd/user/ha-backup.service"
+    mode: "0644"
+    content: |
+      # Managed by roles/homeassistant.
+      [Unit]
+      Description=Pull a config-only Home Assistant backup to this machine
+      Documentation=file://{{ playbook_dir }}/roles/homeassistant/README.md
+      After=network-online.target
+
+      [Service]
+      Type=oneshot
+      Environment=HA_HOST={{ ha_host }}
+      Environment=HA_USER={{ ha_ssh_user }}
+      Environment=DEST={{ ha_backup_dir }}
+      Environment=KEEP_LOCAL={{ ha_backup_keep_local }}
+      Environment=KEEP_REMOTE={{ ha_backup_keep_remote }}
+      Environment=NAME_PREFIX={{ ha_backup_name_prefix }}
+      ExecStart=%h/.local/bin/ha-backup.sh
+      # A backup that hangs must not hang forever.
+      TimeoutStartSec=1800
+  become: false
+  register: ha_service_unit
+  when: ha_manage_timer | bool
+
+- name: Install the backup timer unit
+  ansible.builtin.copy:
+    dest: "{{ ansible_env.HOME }}/.config/systemd/user/ha-backup.timer"
+    mode: "0644"
+    content: |
+      # Managed by roles/homeassistant.
+      #
+      # Persistent=true matters here: gaming-pc suspends after an hour idle and
+      # is switched off overnight, so a Saturday-morning timer WILL be missed
+      # regularly. Persistent runs it at the next opportunity instead of
+      # skipping the week silently.
+      [Unit]
+      Description=Weekly Home Assistant config backup
+
+      [Timer]
+      OnCalendar={{ ha_backup_on_calendar }}
+      Persistent={{ ha_backup_persistent | lower }}
+      RandomizedDelaySec=300
+
+      [Install]
+      WantedBy=timers.target
+  become: false
+  register: ha_timer_unit
+  when: ha_manage_timer | bool
+
+- name: Reload the user systemd manager
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+    scope: user
+  become: false
+  when:
+    - ha_manage_timer | bool
+    - ha_service_unit.changed or ha_timer_unit.changed
+
+- name: Enable and start the backup timer
+  ansible.builtin.systemd_service:
+    name: ha-backup.timer
+    enabled: true
+    state: started
+    scope: user
+  become: false
+  when: ha_manage_timer | bool
+
+# ---------------------------------------------------------------------------
+# Report
+# ---------------------------------------------------------------------------
+- name: Check whether lingering is enabled
+  ansible.builtin.command: "loginctl show-user {{ ha_user_check.stdout }} --property=Linger --value"
+  become: false
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  register: ha_linger
+
+- name: Warn if lingering is off
+  ansible.builtin.debug:
+    msg: >-
+      Lingering is not enabled for {{ ha_user_check.stdout }}, so this user
+      timer only runs while a session is active. Enable it with
+      `sudo loginctl enable-linger {{ ha_user_check.stdout }}`.
+  when:
+    - ha_manage_timer | bool
+    - ha_linger.stdout | default('') | trim != 'yes'
+
+- name: Report the backup schedule
+  ansible.builtin.debug:
+    msg: >-
+      Home Assistant config backups: {{ ha_backup_on_calendar }},
+      keeping {{ ha_backup_keep_local }} locally in {{ ha_backup_dir }}
+      and {{ ha_backup_keep_remote }} on the HA machine.
+      Run one now with `systemctl --user start ha-backup.service`,
+      then `journalctl --user -u ha-backup.service` to see what it did.
+  when: ha_manage_timer | bool

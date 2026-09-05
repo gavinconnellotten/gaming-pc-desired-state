@@ -1,0 +1,54 @@
+---
+# Home Assistant is NOT an Ansible host, and cannot be one.
+#
+# HAOS is an appliance: no Python interpreter, no package manager, no editable
+# systemd units. Ansible's modules all require Python on the target, so the
+# only things that would work are `raw` commands — which is just shell with
+# extra steps and none of Ansible's idempotency.
+#
+# So this role manages the gaming-pc SIDE of the relationship: the SSH access,
+# the scheduled backup pull, and where the results land. Nothing is installed
+# on the Home Assistant machine itself.
+#
+# Everything authenticates with the existing SSH key. Note that no long-lived
+# API token is needed: inside the SSH session the Supervisor API is reachable
+# at http://supervisor with $SUPERVISOR_TOKEN already in the environment, so
+# the backup script uses that rather than a second credential to manage.
+
+ha_host: homeassistant.local
+ha_ssh_user: root
+
+# Where pulled backups land. The NVMe rather than the NTFS drive: btrfs keeps
+# permissions and timestamps intact, and NTFS-through-FUSE is measurably slower.
+ha_backup_dir: "{{ ansible_env.HOME }}/backups/homeassistant"
+
+# Config-only. Deliberately excludes add-ons, folders and media:
+#
+#   full "Automatic backup"   ~8900 MB  (Ollama's models alone are ~8 GB)
+#   config only                  60 MB
+#
+# The owner's decision, 2026-09-05: Home Assistant's configuration is worth
+# protecting; the media is not going in a backup. Consequence worth stating
+# plainly — the ~67 GB TV library on the HA system disk is protected by
+# nothing, and that is an accepted risk rather than an oversight.
+ha_backup_include_addons: false
+ha_backup_include_folders: false
+
+# Weekly, Saturday morning. Persistent so a backup missed while the machine was
+# asleep or powered off runs at the next opportunity rather than being skipped
+# silently — gaming-pc suspends after an hour idle, so misses are expected.
+ha_backup_on_calendar: "Sat *-*-* 09:30:00"
+ha_backup_persistent: true
+
+# Retention. Local is cheap at 60 MB a copy; remote is on the HA system disk
+# which also holds the media, so keep fewer there.
+ha_backup_keep_local: 8
+ha_backup_keep_remote: 2
+
+# Every backup this script creates is named with this prefix, and pruning ONLY
+# ever touches backups matching it. That is what stops a retention sweep from
+# deleting the manual or automatic backups someone else made — the script can
+# only ever remove its own work.
+ha_backup_name_prefix: "gaming-pc weekly config"
+
+ha_manage_timer: true
