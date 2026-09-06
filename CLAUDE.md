@@ -356,6 +356,47 @@ reasoning, flag concerns before building, and don't silently widen scope.
 Prefer detecting-and-reporting over auto-fixing for anything boot-critical —
 `/etc/fstab` in particular is not a file to rewrite unattended.
 
+### Be evidence-driven
+
+Standing instruction from the owner, 2026-09-06, after the same mistake twice
+in one week. **Measure before diagnosing. Don't report a plausible theory as a
+cause.**
+
+What it cost. Diagnosing a Plex playback failure produced four confident
+explanations in a row — a second Plex server on the LAN, the TV Shows library,
+the on-disk codecs, hardware transcoding being off. Each was built from
+something *adjacent*: a port scan, a directory listing, a settings page. None
+was tested before being stated. The owner had to correct the first one himself.
+The real answer was that the viewer was using a **browser**, which cannot play
+HEVC 10-bit; the native app worked first time and the server had been healthy
+throughout. Worse, the correct advice had already been given early and was then
+buried under three more theories instead of being followed up.
+
+Earlier the same week, a 60-second dim test — whose own method disturbed the
+thing it measured — led to "idle detection is broken" and a wrong accusation
+against the USB-to-PS/2 adapter. And `roles/homeassistant` was "verified" with a
+throwaway playbook using `become: false`, the one condition under which its
+`ansible_env.HOME` bug could not appear.
+
+In practice:
+
+- Ask what **single observation** would distinguish the candidates, then go and
+  get it. One measurement beats three inferences.
+- Ask for the access or credential needed to measure **early**, rather than
+  reasoning around its absence. `/status/sessions` with a Plex token settled in
+  one step what four theories could not.
+- Say plainly when something is a hypothesis. "This is a theory until X" is
+  cheap; a confident wrong cause is not.
+- Reproduce a fault the way it actually occurs — same privileges, same entry
+  point, same client. A test that cannot fail the way production fails is not a
+  test.
+- When the owner pushes back on a claim, treat that as a signal the reasoning
+  was assembled rather than observed. Re-derive from evidence instead of
+  defending it.
+
+`CHANGELOG.md` for 2026-09-06 records the four wrong diagnoses in order, and
+the measurement that would have ended the whole thing in one step.
+
 ## History
 
 Started 2026-08-14 in Claude Code **on the web** (claude.ai/code) — the same
