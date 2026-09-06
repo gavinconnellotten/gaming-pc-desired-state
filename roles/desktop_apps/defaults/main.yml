@@ -59,3 +59,26 @@ desktop_apps_remove:
 # nothing. Empty string disables the behaviour.
 desktop_apps_default_browser: librewolf.desktop
 
+# ---------------------------------------------------------------------------
+# qBittorrent: don't let the machine sleep mid-transfer
+#
+# roles/power_management suspends this machine after an hour idle, and a
+# torrent transferring is not "idle" in any sense the owner cares about.
+# qBittorrent has this built in (verified in the 5.2.3 binary: the settings
+# checkPreventFromSuspendWhenDownloading / ...WhenSeeding, and an InhibitorDBus
+# class), so it registers a D-Bus inhibition — the same mechanism games use and
+# the one PowerDevil actually honours. No wrapper or watcher needed.
+#
+# Deliberately ACTIVITY-based, not process-based. Sleep is blocked while
+# torrents are downloading or seeding, not merely because the application is
+# open. A machine that never sleeps because a window was left open is a worse
+# outcome than the problem being solved.
+#
+# Check what is holding the machine awake at any time with
+# scripts/check-power-inhibitors.sh — qBittorrent appears there by name while a
+# transfer is active.
+desktop_apps_manage_qbittorrent_suspend: true
+desktop_apps_qbittorrent_inhibit_downloading: true
+desktop_apps_qbittorrent_inhibit_seeding: true
+desktop_apps_qbittorrent_conf: "{{ desktop_apps_home }}/.config/qBittorrent/qBittorrent.conf"
+

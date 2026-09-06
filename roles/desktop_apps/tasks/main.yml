@@ -138,3 +138,121 @@
       Flatpaks resolve links through the desktop portal against this, so
       Proton Mail follows it too — restart the flatpak if it was already open.
 
+
+# ---------------------------------------------------------------------------
+# qBittorrent: inhibit sleep during transfers
+#
+# roles/power_management suspends this machine after an hour idle, and a
+# torrent transferring is not idle in any sense worth honouring. qBittorrent
+# does this itself via D-Bus — the same inhibition mechanism games use, and the
+# one PowerDevil acts on — so this only has to set two settings.
+#
+# getent, NOT ansible_env.HOME: facts are gathered with the play's become
+# already in effect, so that variable is root's. See roles/gaming.
+# ---------------------------------------------------------------------------
+- name: Determine the desktop user for qBittorrent config
+  ansible.builtin.command: id -un
+  become: false
+  changed_when: false
+  check_mode: false
+  register: desktop_apps_qb_user
+  when: desktop_apps_manage_qbittorrent_suspend | bool
+
+- name: Resolve that user's home directory
+  ansible.builtin.command: "getent passwd {{ desktop_apps_qb_user.stdout }}"
+  become: false
+  changed_when: false
+  check_mode: false
+  register: desktop_apps_qb_passwd
+  when: desktop_apps_manage_qbittorrent_suspend | bool
+
+- name: Set the qBittorrent config path
+  ansible.builtin.set_fact:
+    desktop_apps_home: "{{ desktop_apps_qb_passwd.stdout.split(':')[5] }}"
+  when: desktop_apps_manage_qbittorrent_suspend | bool
+
+- name: Fail if the resolved home is root's
+  ansible.builtin.fail:
+    msg: >-
+      Resolved home is {{ desktop_apps_home }}, which is root's. qBittorrent's
+      config belongs to the desktop user. Run the playbook as your desktop user
+      with --ask-become-pass, not under sudo.
+  when:
+    - desktop_apps_manage_qbittorrent_suspend | bool
+    - desktop_apps_home == '/root'
+
+# qBittorrent rewrites this file while running and again on exit, so anything
+# written underneath it is silently clobbered. Same reasoning as using
+# kwriteconfig6 for Plasma rather than copying files: never fight a running
+# application for ownership of its own config.
+- name: Check whether qBittorrent is running
+  ansible.builtin.command: pgrep -x qbittorrent
+  become: false
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  register: desktop_apps_qb_running
+  when: desktop_apps_manage_qbittorrent_suspend | bool
+
+- name: Check whether the qBittorrent config exists yet
+  ansible.builtin.stat:
+    path: "{{ desktop_apps_qbittorrent_conf }}"
+  become: false
+  register: desktop_apps_qb_conf
+  when: desktop_apps_manage_qbittorrent_suspend | bool
+
+- name: Set qBittorrent to inhibit sleep during transfers
+  ansible.builtin.lineinfile:
+    path: "{{ desktop_apps_qbittorrent_conf }}"
+    regexp: '^General\\{{ item.key }}='
+    line: 'General\{{ item.key }}={{ item.value | lower }}'
+    insertafter: '^\[Preferences\]'
+    state: present
+  become: false
+  loop:
+    - key: PreventFromSuspendWhenDownloading
+      value: "{{ desktop_apps_qbittorrent_inhibit_downloading }}"
+    - key: PreventFromSuspendWhenSeeding
+      value: "{{ desktop_apps_qbittorrent_inhibit_seeding }}"
+  loop_control:
+    label: "{{ item.key }}"
+  register: desktop_apps_qb_written
+  when:
+    - desktop_apps_manage_qbittorrent_suspend | bool
+    - desktop_apps_qb_conf.stat.exists
+    - desktop_apps_qb_running.rc != 0
+
+# Report rather than fail. A running qBittorrent is a normal state, not an
+# error, and failing the whole play over a preference would be disproportionate.
+- name: Report that qBittorrent must be closed to apply this
+  ansible.builtin.debug:
+    msg: >-
+      qBittorrent is running, so its config was NOT modified — it rewrites that
+      file on exit and would discard the change. Either close it and re-run, or
+      set it yourself in Tools > Options > Behaviour > Power Management:
+      "Inhibit system sleep when torrents are downloading" and "...when torrents
+      are seeding".
+  when:
+    - desktop_apps_manage_qbittorrent_suspend | bool
+    - desktop_apps_qb_running.rc == 0
+
+- name: Report that qBittorrent has no config yet
+  ansible.builtin.debug:
+    msg: >-
+      {{ desktop_apps_qbittorrent_conf }} does not exist, so there is nothing to
+      configure. qBittorrent writes it on first run — start it once, close it,
+      then re-run this playbook.
+  when:
+    - desktop_apps_manage_qbittorrent_suspend | bool
+    - not desktop_apps_qb_conf.stat.exists
+
+- name: Note that the sleep inhibition is now set
+  ansible.builtin.debug:
+    msg: >-
+      qBittorrent will now hold a sleep inhibition while torrents are
+      downloading or seeding. It is activity-based, not process-based — leaving
+      the app open with nothing active still lets the machine suspend. Verify
+      with ./scripts/check-power-inhibitors.sh during a transfer.
+  when:
+    - desktop_apps_manage_qbittorrent_suspend | bool
+    - desktop_apps_qb_written.changed | default(false)

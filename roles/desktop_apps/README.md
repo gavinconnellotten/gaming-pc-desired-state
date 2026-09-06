@@ -115,3 +115,42 @@ silently does nothing.
 the role only writes when the answer is wrong. Verified: `changed=0` when
 correct, and it restores LibreWolf when the default is changed behind its back.
 
+
+## qBittorrent: don't sleep mid-transfer
+
+`roles/power_management` suspends this machine after an hour idle, and a
+torrent transferring is not idle in any sense worth honouring.
+
+qBittorrent handles this itself — verified in the 5.2.3 binary, which carries
+the settings `checkPreventFromSuspendWhenDownloading` /
+`...WhenSeeding` and an `InhibitorDBus` class. It registers a **D-Bus
+inhibition**, the same mechanism games use and the one PowerDevil actually acts
+on. So the role only has to set two preferences; there is no wrapper, watcher
+or timer involved.
+
+**Activity-based, not process-based.** Sleep is blocked while torrents are
+downloading or seeding, not merely because the application is open. That is a
+deliberate choice: a machine that never sleeps because a window was left open
+is a worse outcome than the problem being solved.
+
+Check what is holding the machine awake at any time with
+`scripts/check-power-inhibitors.sh` — qBittorrent appears there by name during
+a transfer. Note that `systemd-inhibit --list` does **not** show it, for the
+same reason it does not show games.
+
+### It refuses to write while qBittorrent is running
+
+qBittorrent rewrites `~/.config/qBittorrent/qBittorrent.conf` while running and
+again on exit, so anything written underneath it is silently discarded. The
+role checks with `pgrep` and reports instead, telling you to either close it or
+set it in **Tools → Options → Behaviour → Power Management**.
+
+Same principle as using `kwriteconfig6` for Plasma rather than copying files:
+never fight a running application for ownership of its own config. Reporting
+rather than failing is deliberate too — a running qBittorrent is a normal
+state, not an error, and failing the play over a preference would be
+disproportionate.
+
+If the config file does not exist yet (a rebuilt machine where qBittorrent has
+never been started), the role says so rather than creating a partial file that
+qBittorrent would overwrite on first run.
