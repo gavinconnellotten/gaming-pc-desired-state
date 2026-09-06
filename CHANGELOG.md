@@ -3,6 +3,62 @@
 Dated log of what's been done to `gaming-pc`, and whether it's been codified
 into this repo yet.
 
+## 2026-09-06 — Plex playback failure, and what it exposed
+
+A household member could not stream a show; Plex reported `s3015` (a *media*
+error, not a connection error). Diagnosis found the Home Assistant machine had
+gone down at ~14:38 — no ping, ARP `FAILED`, none of its four services
+answering anywhere on the LAN, and `CIFS: VFS: \\homeassistant.local has not
+responded in 180 seconds` in this machine's kernel log.
+
+**Rebooting it was not enough**, which is the interesting part.
+
+- Samba NAS2 took **90 seconds** to reach `started`.
+- Both media mounts came up `failed` and stayed that way. Home Assistant mounts
+  its media over CIFS from its own Samba add-on and loses that race at boot;
+  nothing retries.
+- The Plex add-on started at **15:13:31**, inside that window. Mounts were
+  reloaded at **15:17**. A running Plex does not re-examine storage that
+  changed underneath it, so the machine looked healthy — reachable, file on
+  disk, readable — while playback still failed. Restarting Plex fixed it.
+
+That combination is why the fault is so confusing: every individual check
+passes and playback still does not work.
+
+### New: `ha-health.sh`, a 15-minute self-healing timer
+
+Waits for Samba, reloads any mount that is not `active`, re-reads the state
+rather than trusting the reload's exit code, and restarts Plex **only if a
+mount was actually repaired**. A media server that restarts itself on a timer
+for no reason is worse than the fault.
+
+A timer rather than a boot hook because gaming-pc cannot observe Home
+Assistant's boot — it may be asleep or off. Stated limitation: it only runs
+while gaming-pc is awake, so a 3am reboot is repaired at next wake. Closing
+that properly needs an automation inside Home Assistant.
+
+`Persistent` is deliberately not set — a missed repair is worth doing at the
+next normal firing, not as a burst of catch-up runs on wake.
+
+### A wrong diagnosis worth recording
+
+A LAN sweep found a second Plex at `192.168.68.102` — the NVIDIA Shield. From
+"Home Assistant is down" + "a Plex is up" + "the show is on Home Assistant's
+disk", this was assembled into "the Shield reads its media from Home
+Assistant's shares", presented to the owner as the cause, and used to argue
+that Home Assistant was a single point of failure for all playback.
+
+None of it was checked. The Shield's libraries were never inspected — there was
+no token and no attempt made to get one. The owner corrected it: the two
+servers host entirely separate media, and the viewer was on the Home Assistant
+server all along, whose media is local to it. The Shield was irrelevant and
+appeared only because it answered a port scan.
+
+**The lesson is about method, not Plex:** when a fault has an obvious suspect
+and a plausible story, the story is the thing to test, not the thing to report.
+The timeline from the add-on logs — which is what actually solved it — was
+available the whole time.
+
 ## 2026-09-06
 
 - **Updates now apply on a schedule** — `roles/os_updates`, Saturdays at 08:00.

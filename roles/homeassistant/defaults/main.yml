@@ -52,3 +52,32 @@ ha_backup_keep_remote: 2
 ha_backup_name_prefix: "gaming-pc weekly config"
 
 ha_manage_timer: true
+
+# ---------------------------------------------------------------------------
+# Mount/Plex self-healing
+#
+# Home Assistant mounts its media over CIFS from its OWN Samba add-on, and at
+# boot it loses the race: Samba took 90 seconds to start on 2026-09-06 while
+# both mounts had already failed, and nothing retries them. The Plex add-on
+# starts in the same window and then holds a view of storage that no longer
+# matches reality — so repairing the mounts underneath it fixes the machine
+# without fixing playback. Both have to be handled, in order.
+#
+# Every 15 minutes rather than only at boot, because gaming-pc cannot observe
+# Home Assistant's boot — it may be asleep or off at the time.
+#
+# The honest limitation: this only runs while gaming-pc is awake. A Home
+# Assistant reboot at 3am is repaired when gaming-pc next wakes, not
+# immediately. Closing that gap properly needs an automation inside Home
+# Assistant itself.
+ha_manage_health_check: true
+ha_health_interval: 15min
+ha_health_boot_delay: 2min
+
+# Add-on slugs, for the health check. Taken from `ha addons` on this machine.
+ha_plex_slug: a0d7b954_plex
+ha_samba_slug: 1a32f091_sambanas2
+
+# How long to wait for Samba before giving up. Reloading a CIFS mount while the
+# server it points at is still starting simply fails again.
+ha_health_samba_wait: 180

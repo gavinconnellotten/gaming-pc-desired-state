@@ -177,6 +177,83 @@
   when: ha_manage_timer | bool
 
 # ---------------------------------------------------------------------------
+# Mount/Plex self-healing
+#
+# See defaults/main.yml for the failure this repairs. Runs on a short interval
+# rather than at Home Assistant's boot, because this machine cannot observe
+# that boot — it may be asleep or switched off when it happens.
+# ---------------------------------------------------------------------------
+- name: Install the health check script
+  ansible.builtin.copy:
+    src: ha-health.sh
+    dest: "{{ ha_home }}/.local/bin/ha-health.sh"
+    mode: "0755"
+  become: false
+  when: ha_manage_health_check | bool
+
+- name: Install the health check service unit
+  ansible.builtin.copy:
+    dest: "{{ ha_home }}/.config/systemd/user/ha-health.service"
+    mode: "0644"
+    content: |
+      # Managed by roles/homeassistant.
+      [Unit]
+      Description=Repair Home Assistant media mounts and Plex after a reboot
+      Documentation=file://{{ playbook_dir }}/roles/homeassistant/README.md
+      After=network-online.target
+
+      [Service]
+      Type=oneshot
+      Environment=HA_HOST={{ ha_host }}
+      Environment=HA_USER={{ ha_ssh_user }}
+      Environment=PLEX_SLUG={{ ha_plex_slug }}
+      Environment=SAMBA_SLUG={{ ha_samba_slug }}
+      Environment=SAMBA_WAIT={{ ha_health_samba_wait }}
+      ExecStart=%h/.local/bin/ha-health.sh
+      # Generous enough to cover the Samba wait, short enough that a hung SSH
+      # cannot keep the unit running until the next firing.
+      TimeoutStartSec=600
+  become: false
+  register: ha_health_service
+  when: ha_manage_health_check | bool
+
+- name: Install the health check timer unit
+  ansible.builtin.copy:
+    dest: "{{ ha_home }}/.config/systemd/user/ha-health.timer"
+    mode: "0644"
+    content: |
+      # Managed by roles/homeassistant.
+      #
+      # OnBootSec covers this machine starting up; OnUnitActiveSec covers Home
+      # Assistant rebooting at some arbitrary time afterwards. Persistent is
+      # deliberately NOT set: a repair that was missed while this machine slept
+      # is worth doing on the next normal firing, not as a thundering herd of
+      # catch-up runs the moment it wakes.
+      [Unit]
+      Description=Periodic Home Assistant mount and Plex health check
+
+      [Timer]
+      OnBootSec={{ ha_health_boot_delay }}
+      OnUnitActiveSec={{ ha_health_interval }}
+      RandomizedDelaySec=60
+
+      [Install]
+      WantedBy=timers.target
+  become: false
+  register: ha_health_timer
+  when: ha_manage_health_check | bool
+
+- name: Enable and start the health check timer
+  ansible.builtin.systemd_service:
+    name: ha-health.timer
+    enabled: true
+    state: started
+    scope: user
+    daemon_reload: "{{ (ha_health_service.changed or ha_health_timer.changed) | bool }}"
+  become: false
+  when: ha_manage_health_check | bool
+
+# ---------------------------------------------------------------------------
 # Report
 # ---------------------------------------------------------------------------
 - name: Check whether lingering is enabled

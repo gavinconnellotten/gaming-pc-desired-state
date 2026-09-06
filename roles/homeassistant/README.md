@@ -100,6 +100,65 @@ systemctl --user start ha-backup.service
 journalctl --user -u ha-backup.service -n 30
 ```
 
+## Self-healing after a Home Assistant reboot
+
+`ha-health.sh`, on a 15-minute user timer, repairs the two things that break
+media every time Home Assistant restarts.
+
+**The failure, measured on 2026-09-06.** Home Assistant mounts its media over
+CIFS from its own Samba add-on, and at boot it loses the race:
+
+```
+Samba NAS2   state: startup    <- took 90 seconds to come up
+ELEMENTS     state: failed
+SSD          state: failed
+```
+
+Nothing retries them. Worse, Plex starts in the same window:
+
+```
+15:13:31   Plex add-on started    <- media mounts FAILED at this point
+15:17      mounts reloaded        <- Plex had already started, never re-checked
+```
+
+So repairing the mounts underneath a running Plex fixes the *machine* while
+playback still fails — which is exactly how the fault presents: the server is
+reachable, the file is on disk and readable, and Plex reports a media error.
+Both problems have to be handled, in that order.
+
+**What the script does**
+
+1. Exits quietly if Home Assistant is unreachable. A machine that is off is not
+   a fault to repair.
+2. Waits for Samba to reach `started` — reloading a CIFS mount while the server
+   it points at is still starting simply fails again.
+3. Reloads any mount that is not `active`, then **re-reads the state** rather
+   than trusting the reload's exit code.
+4. Restarts Plex **only if a mount was actually repaired**. A media server that
+   restarts itself on a timer for no reason is worse than the fault it is
+   meant to fix.
+
+**Why a timer and not a boot hook.** This machine cannot observe Home
+Assistant's boot — it may be asleep or switched off at the time. A short
+interval catches the reboot whenever it happens.
+
+**The limitation, stated plainly:** it only runs while gaming-pc is awake. This
+machine suspends after an hour idle, so a Home Assistant reboot at 3am is
+repaired when gaming-pc next wakes, not immediately. Closing that gap properly
+would need an automation inside Home Assistant, which would mean editing its
+configuration — outside what this repo manages.
+
+`Persistent` is deliberately **not** set on the timer: a repair missed while
+this machine slept is worth doing at the next normal firing, not as a burst of
+catch-up runs the moment it wakes.
+
+Run it by hand any time:
+
+```bash
+systemctl --user start ha-health.service
+journalctl --user -u ha-health.service -n 20
+```
+
 ## Reporting
 
 Two scripts, both read-only, both safe any time:
