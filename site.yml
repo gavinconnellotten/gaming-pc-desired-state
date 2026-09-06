@@ -1,20 +1,36 @@
 ---
+# Roles are tagged so any one can be applied on its own:
+#
+#   ansible-playbook -i inventory.ini site.yml --ask-become-pass --tags os_updates
+#
+# Worth having because this play stops at the first failure, so a role late in
+# the list is unreachable while anything before it is broken — and because a
+# full run does dnf transactions and a Proton-GE download that are pointless
+# when you only meant to change one thing.
 - name: Configure gaming-pc desired state
   hosts: local
   become: true
 
   roles:
-    - claude_desktop
-    - smb_mounts
-    - gaming
-    - power_management
-    - desktop_apps
-    - system_tuning
+    - role: claude_desktop
+      tags: [claude_desktop]
+    - role: smb_mounts
+      tags: [smb_mounts]
+    - role: gaming
+      tags: [gaming]
+    - role: power_management
+      tags: [power_management]
+    - role: desktop_apps
+      tags: [desktop_apps]
+    - role: system_tuning
+      tags: [system_tuning]
     # Weekly updates through Nobara's own updater, with the NVIDIA module
     # verified afterwards. Never reboots. See roles/os_updates/README.md.
-    - os_updates
+    - role: os_updates
+      tags: [os_updates]
     # Manages the gaming-pc side of the Home Assistant relationship — the
     # backup pull and its timer. Home Assistant itself is deliberately NOT an
     # Ansible host: HAOS ships no Python, so no module can run there. See
     # roles/homeassistant/README.md.
-    - homeassistant
+    - role: homeassistant
+      tags: [homeassistant]
