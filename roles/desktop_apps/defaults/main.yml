@@ -77,8 +77,21 @@ desktop_apps_default_browser: librewolf.desktop
 # Check what is holding the machine awake at any time with
 # scripts/check-power-inhibitors.sh — qBittorrent appears there by name while a
 # transfer is active.
+#
+# Downloading blocks sleep; seeding deliberately does NOT. The owner's decision,
+# 2026-09-06: a download is a task with an end, worth staying awake for. Seeding
+# has no end, so honouring it would mean a machine that never suspends again
+# once a torrent completes — which is the behaviour roles/power_management
+# exists to prevent.
+#
+# Consequence, stated rather than implied: when the machine suspends, seeding
+# stops until it wakes. That is accepted, not overlooked.
+#
+# Both keys are written explicitly, including the false one. Relying on
+# qBittorrent's built-in default would mean the desired state depends on a
+# default that could change between versions.
 desktop_apps_manage_qbittorrent_suspend: true
 desktop_apps_qbittorrent_inhibit_downloading: true
-desktop_apps_qbittorrent_inhibit_seeding: true
+desktop_apps_qbittorrent_inhibit_seeding: false
 desktop_apps_qbittorrent_conf: "{{ desktop_apps_home }}/.config/qBittorrent/qBittorrent.conf"
 

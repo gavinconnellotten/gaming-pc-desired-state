@@ -128,10 +128,25 @@ inhibition**, the same mechanism games use and the one PowerDevil actually acts
 on. So the role only has to set two preferences; there is no wrapper, watcher
 or timer involved.
 
-**Activity-based, not process-based.** Sleep is blocked while torrents are
-downloading or seeding, not merely because the application is open. That is a
-deliberate choice: a machine that never sleeps because a window was left open
-is a worse outcome than the problem being solved.
+**Activity-based, not process-based.** Sleep is blocked by an active transfer,
+not merely because the application is open. A machine that never sleeps because
+a window was left open is a worse outcome than the problem being solved.
+
+**Downloading blocks sleep; seeding does not.** The owner's decision,
+2026-09-06. A download is a task with an end and is worth staying awake for.
+Seeding has no end, so honouring it would mean a machine that never suspends
+again once a torrent completes — exactly the behaviour `roles/power_management`
+exists to prevent.
+
+The consequence is worth stating rather than leaving implied: **when the machine
+suspends, seeding stops until it wakes.** That is accepted, not overlooked. If
+you ever want to seed overnight, set
+`desktop_apps_qbittorrent_inhibit_seeding: true` and expect the machine to stay
+awake for as long as the torrent is shared.
+
+Both keys are written explicitly, including the `false` one, so the desired
+state does not depend on a qBittorrent default that could change between
+versions.
 
 Check what is holding the machine awake at any time with
 `scripts/check-power-inhibitors.sh` — qBittorrent appears there by name during
