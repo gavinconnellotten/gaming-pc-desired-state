@@ -40,24 +40,65 @@ that properly needs an automation inside Home Assistant.
 `Persistent` is deliberately not set — a missed repair is worth doing at the
 next normal firing, not as a burst of catch-up runs on wake.
 
-### A wrong diagnosis worth recording
+### Resolution: the client was a browser
 
-A LAN sweep found a second Plex at `192.168.68.102` — the NVIDIA Shield. From
-"Home Assistant is down" + "a Plex is up" + "the show is on Home Assistant's
-disk", this was assembled into "the Shield reads its media from Home
-Assistant's shares", presented to the owner as the cause, and used to argue
-that Home Assistant was a single point of failure for all playback.
+The viewer was using **Plex Web in Firefox on an Android tablet**. Installing
+the **Plex Android app** fixed it first time, with no settings changed.
 
-None of it was checked. The Shield's libraries were never inspected — there was
-no token and no attempt made to get one. The owner corrected it: the two
-servers host entirely separate media, and the viewer was on the Home Assistant
-server all along, whose media is local to it. The Shield was irrelevant and
-appeared only because it answered a port scan.
+Browsers cannot play HEVC 10-bit. The native app can — and does, via the
+server's GPU: the working session still shows `videoDecision="transcode"`,
+`hevc -> hevc`, `transcodeHwFullPipeline="1"`, which incidentally disproves the
+theory that the tablet could not decode Plex's HEVC output.
 
-**The lesson is about method, not Plex:** when a fault has an obvious suspect
-and a plausible story, the story is the thing to test, not the thing to report.
-The timeline from the add-on logs — which is what actually solved it — was
-available the whole time.
+**The server was healthy throughout.** Nothing about Home Assistant, the
+mounts, the libraries, the codecs on disk or the transcoder was ever the cause.
+
+### How to diagnose this properly next time
+
+The single measurement that separates server from client is
+`/status/sessions` with a Plex token:
+
+```bash
+curl -sS -H "X-Plex-Token: $TOKEN" http://<server>:32400/status/sessions
+```
+
+Read `state`, `speed`, `error` and `maxOffsetAvailable` on the
+`TranscodeSession`. A session sitting at `state="paused"` with `error="0"` and
+minutes of video already buffered means the **server is fine and the client is
+failing** — which was visible here and would have ended the investigation
+immediately.
+
+Also useful: `/:/prefs` shows `HardwareAcceleratedCodecs` and
+`TranscoderTempDirectory`, and `transcodeHwFullPipeline="1"` in a live session
+proves hardware transcoding is genuinely engaged rather than merely enabled.
+
+### Four wrong diagnoses worth recording
+
+In order, each stated confidently and each wrong:
+
+1. **"The NVIDIA Shield reads its media from Home Assistant's shares."** A LAN
+   sweep found a second Plex at `192.168.68.102`. From "Home Assistant is down"
+   + "a Plex is up" + "the show is on Home Assistant's disk", a dependency was
+   invented, presented as the cause, and used to argue Home Assistant was a
+   single point of failure for all playback. The Shield's libraries were never
+   inspected. The owner corrected it: the two servers host entirely separate
+   media and the viewer was on the Home Assistant server all along.
+2. **"Plex started before storage was ready."** True, and worth fixing — see
+   `ha-health.sh` — but not why this viewer could not play.
+3. **"Every TV file is HEVC 10-bit, so it is a codec problem."** The correlation
+   was real; the conclusion that the *library* mattered was not. A 10-bit movie
+   failed too, which was the right test, run late.
+4. **"Hardware transcoding is not enabled."** It already was, and a live session
+   proves it works.
+
+**The pattern in all four:** reasoning from something adjacent — a port scan, a
+directory listing, a settings page — rather than from what the server reported
+about the failing session. Each theory was plausible, none was tested before
+being reported. The one piece of correct advice given early ("use the app
+instead of the browser") was buried among the wrong ones and not followed up.
+
+When a fault has an obvious suspect and a plausible story, the story is the
+thing to test, not the thing to report.
 
 ## 2026-09-06
 
