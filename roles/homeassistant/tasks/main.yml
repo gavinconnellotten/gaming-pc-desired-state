@@ -23,6 +23,30 @@
       as your desktop user with --ask-become-pass, not under sudo.
   when: ha_user_check.stdout == 'root'
 
+# getent, NOT ansible_env.HOME. Facts are gathered with the play's `become`
+# already in effect, so ansible_env.HOME is root's — even though `id -un` with
+# become: false correctly says otherwise. Checking the user and then using
+# ansible_env.HOME is a guard that verifies one thing and acts on another;
+# doing exactly that put this role's files in /root on 2026-09-06.
+- name: Resolve the desktop user's home directory
+  ansible.builtin.command: "getent passwd {{ ha_user_check.stdout }}"
+  become: false
+  changed_when: false
+  check_mode: false
+  register: ha_passwd
+
+- name: Set the resolved home directory
+  ansible.builtin.set_fact:
+    ha_home: "{{ ha_passwd.stdout.split(':')[5] }}"
+
+- name: Fail if the resolved home is root's
+  ansible.builtin.fail:
+    msg: >-
+      Resolved home directory is {{ ha_home }}, which is root's. The backup
+      timer and SSH key must belong to the desktop user. Run the playbook as
+      your desktop user with --ask-become-pass, not under sudo.
+  when: ha_home == '/root'
+
 - name: Ensure the backup directory exists
   ansible.builtin.file:
     path: "{{ ha_backup_dir }}"
@@ -32,7 +56,7 @@
 
 - name: Ensure ~/.local/bin exists
   ansible.builtin.file:
-    path: "{{ ansible_env.HOME }}/.local/bin"
+    path: "{{ ha_home }}/.local/bin"
     state: directory
     mode: "0755"
   become: false
@@ -40,7 +64,7 @@
 - name: Install the backup script
   ansible.builtin.copy:
     src: ha-backup.sh
-    dest: "{{ ansible_env.HOME }}/.local/bin/ha-backup.sh"
+    dest: "{{ ha_home }}/.local/bin/ha-backup.sh"
     mode: "0755"
   become: false
 
@@ -85,7 +109,7 @@
 # ---------------------------------------------------------------------------
 - name: Install the backup service unit
   ansible.builtin.copy:
-    dest: "{{ ansible_env.HOME }}/.config/systemd/user/ha-backup.service"
+    dest: "{{ ha_home }}/.config/systemd/user/ha-backup.service"
     mode: "0644"
     content: |
       # Managed by roles/homeassistant.
@@ -111,7 +135,7 @@
 
 - name: Install the backup timer unit
   ansible.builtin.copy:
-    dest: "{{ ansible_env.HOME }}/.config/systemd/user/ha-backup.timer"
+    dest: "{{ ha_home }}/.config/systemd/user/ha-backup.timer"
     mode: "0644"
     content: |
       # Managed by roles/homeassistant.

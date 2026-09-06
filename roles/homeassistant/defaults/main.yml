@@ -20,7 +20,7 @@ ha_ssh_user: root
 
 # Where pulled backups land. The NVMe rather than the NTFS drive: btrfs keeps
 # permissions and timestamps intact, and NTFS-through-FUSE is measurably slower.
-ha_backup_dir: "{{ ansible_env.HOME }}/backups/homeassistant"
+ha_backup_dir: "{{ ha_home }}/backups/homeassistant"
 
 # Config-only. Deliberately excludes add-ons, folders and media:
 #

@@ -114,7 +114,6 @@
   changed_when: false
   check_mode: false
   register: os_updates_user
-  when: os_updates_disable_appcenter_tray | bool
 
 - name: Fail if the autostart override would be written for root
   ansible.builtin.fail:
@@ -126,9 +125,36 @@
     - os_updates_disable_appcenter_tray | bool
     - os_updates_user.stdout == 'root'
 
+# getent, NOT ansible_env.HOME. Facts are gathered with the play's `become`
+# already in effect, so ansible_env.HOME is root's — even though `id -un` with
+# become: false correctly reports the desktop user. Checking the user and then
+# using ansible_env.HOME is a guard that verifies one thing and acts on
+# another, which is exactly how this role tried to create /root/.config on
+# 2026-09-06 and failed.
+- name: Resolve the desktop user's home directory
+  ansible.builtin.command: "getent passwd {{ os_updates_user.stdout }}"
+  become: false
+  changed_when: false
+  check_mode: false
+  register: os_updates_passwd
+
+- name: Set the resolved home directory
+  ansible.builtin.set_fact:
+    os_updates_home: "{{ os_updates_passwd.stdout.split(':')[5] }}"
+
+- name: Fail if the resolved home is root's
+  ansible.builtin.fail:
+    msg: >-
+      Resolved home directory is {{ os_updates_home }}, which is root's. The
+      autostart override must belong to the desktop user or it does nothing.
+      Run the playbook as your desktop user with --ask-become-pass.
+  when:
+    - os_updates_disable_appcenter_tray | bool
+    - os_updates_home == '/root'
+
 - name: Ensure the user autostart directory exists
   ansible.builtin.file:
-    path: "{{ ansible_env.HOME }}/.config/autostart"
+    path: "{{ os_updates_home }}/.config/autostart"
     state: directory
     mode: "0755"
   become: false
@@ -136,7 +162,7 @@
 
 - name: Disable the App Centre updater tray icon
   ansible.builtin.copy:
-    dest: "{{ ansible_env.HOME }}/.config/autostart/{{ os_updates_appcenter_autostart }}"
+    dest: "{{ os_updates_home }}/.config/autostart/{{ os_updates_appcenter_autostart }}"
     mode: "0644"
     content: |
       # Managed by roles/os_updates.
@@ -160,7 +186,7 @@
 
 - name: Re-enable the App Centre updater tray icon
   ansible.builtin.file:
-    path: "{{ ansible_env.HOME }}/.config/autostart/{{ os_updates_appcenter_autostart }}"
+    path: "{{ os_updates_home }}/.config/autostart/{{ os_updates_appcenter_autostart }}"
     state: absent
   become: false
   when: not (os_updates_disable_appcenter_tray | bool)
