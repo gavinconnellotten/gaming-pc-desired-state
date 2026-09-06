@@ -271,14 +271,32 @@ property and its own internal option. Turning off one looks done.
 on the HA system disk is therefore protected by nothing — an accepted risk, not
 an oversight.
 
-## Updates: report, don't apply
+## Updates
 
-The rule for both machines. Automate noticing; leave applying to the tool that
-understands the system.
+Automated on gaming-pc, deliberate on Home Assistant. The rule that matters is
+not "automate or don't" — it is **use the tool that understands the system**.
 
-- **gaming-pc:** `nobara-sync cli`, never plain `dnf` or the App Centre.
+- **gaming-pc:** `roles/os_updates` runs `nobara-sync cli` weekly, never plain
+  `dnf` or the App Centre. Nobara's updater does the post-update driver rebuild
+  the others skip. The NVIDIA module is verified afterwards and rebuilt if
+  missing. **It never reboots.** The App Centre tray reminder is deliberately
+  suppressed, since updates are scheduled and reported.
 - **Home Assistant:** everything pinned except Music Assistant. Core and HAOS
-  have no auto-update setting; the Supervisor updates itself by design.
+  have no auto-update setting; the Supervisor updates itself by design. Applied
+  by hand, on the owner's judgement.
+
+Saturday sequence, in this order so the report describes the machine *after*
+updating: **08:00** update, **09:30** HA backup, **10:09** report.
+
+**The reason any of this matters, concretely:** on 2026-09-05 a kernel was
+installed with no NVIDIA module built for it, because `40-dkms.install` fires
+when the *kernel* is installed and `kernel-devel` arrived fourteen minutes later
+in a separate transaction. Nothing retried. The only visible symptom was "reboot
+pending", which reads like good news. Both `scripts/check-gaming-pc.sh` and the
+update script now refuse to call a reboot safe unless the module exists.
+
+Three kernels are kept, so a driverless boot is recoverable by choosing the
+previous kernel in GRUB. Worth knowing before it happens late at night.
 
 **The reason this matters, concretely:** on 2026-09-05 a kernel was installed
 with no NVIDIA module built for it, because `40-dkms.install` fires when the

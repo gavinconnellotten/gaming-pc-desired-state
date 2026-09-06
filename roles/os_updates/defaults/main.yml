@@ -1,0 +1,58 @@
+---
+# Scheduled OS updates, via Nobara's own updater.
+#
+# This role deliberately runs `nobara-sync`, never dnf. Nobara ships patched
+# packages and layered repos, and — critically — its updater performs the
+# post-update driver rebuild that plain dnf and the App Centre skip. That
+# omission is what produced the 2026-09-05 near-miss, where a kernel installed
+# with no NVIDIA module left the machine one reboot from having no graphics.
+#
+# `nobara-sync cli` is non-interactive by design: "Installs system updates and
+# fixups by default; use --all to also install Flatpak updates."
+os_updates_manage_timer: true
+
+# Saturday, early enough to finish before the Home Assistant backup at 09:30
+# and the weekly report at 10:09 — so the report describes the machine as it is
+# AFTER updating, which is the state a decision gets made about.
+os_updates_on_calendar: "Sat *-*-* 08:00:00"
+
+# This machine sleeps after an hour idle and is switched off overnight, so a
+# Saturday-morning timer WILL be missed regularly. Run at the next opportunity
+# rather than skipping the week in silence.
+os_updates_persistent: true
+
+# Include Flatpak updates (`--all`). Worth having on: the Flatpak NVIDIA GL
+# runtimes have to track the host driver, and a stale one breaks Flatpak games
+# in ways that look like a game bug rather than a packaging one.
+os_updates_include_flatpak: true
+
+# After updating, verify the NVIDIA module exists for the newest installed
+# kernel and build it if not.
+#
+# This closes the race that bit on 2026-09-05: /usr/lib/kernel/install.d/
+# 40-dkms.install fires when the KERNEL is installed, and nothing re-runs it if
+# kernel-devel arrives later in a separate transaction. nobara-sync normally
+# handles this; the check costs nothing and the failure mode it guards against
+# is a machine with no graphics driver.
+os_updates_verify_nvidia: true
+
+# NEVER reboot unattended. A reboot mid-download or mid-game is worse than a
+# postponed kernel, and the weekly report says when one is due AND whether it
+# is safe. This exists as a variable only to make the decision explicit.
+os_updates_auto_reboot: false
+
+os_updates_script: /usr/local/sbin/nobara-update.sh
+
+# ---------------------------------------------------------------------------
+# The App Centre updater tray icon
+#
+# Turned off because it is now redundant: updates apply on a schedule, and the
+# Saturday report says what changed. Two nagging systems for one job is one too
+# many.
+#
+# Disabled with an XDG autostart override in the user's home rather than by
+# deleting /etc/xdg/autostart/org.dnf.AppCenter.Updater.desktop, which is owned
+# by a package and would come back on its next update — and would take the
+# file with it if anyone ever wanted it again.
+os_updates_disable_appcenter_tray: true
+os_updates_appcenter_autostart: org.dnf.AppCenter.Updater.desktop

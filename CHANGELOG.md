@@ -3,6 +3,46 @@
 Dated log of what's been done to `gaming-pc`, and whether it's been codified
 into this repo yet.
 
+## 2026-09-06
+
+- **Updates now apply on a schedule** — `roles/os_updates`, Saturdays at 08:00.
+  A reversal of the "report, don't apply" position taken the day before, at the
+  owner's request, and a defensible one: the objection was never to automating
+  updates, it was to automating them with a tool that skips the driver rebuild.
+  `nobara-sync` is the tool that does it.
+- **`nobara-sync cli`, never dnf.** It is non-interactive by design and
+  re-invokes itself with `sudo`, which is why the timer runs as root — from a
+  user session it stops dead asking for a password. Flatpaks included via
+  `--all`, because the Flatpak NVIDIA GL runtimes must track the host driver
+  and a stale one breaks Flatpak games in ways that look like a game bug.
+- **The driver is verified afterwards, and rebuilt if missing**, closing the
+  2026-09-05 race for good. The script re-reads `dkms status` rather than
+  trusting `dkms autoinstall`'s exit code, and fails loudly if the module is
+  still absent.
+- **It never reboots.** `os_updates_auto_reboot` exists only to make that an
+  explicit decision rather than an omission. The Saturday report says when a
+  reboot is due *and* whether the driver is ready for it; that is when the
+  decision gets made, not 8am on a timer.
+- **The App Centre tray reminder is off.** Suppressed with an XDG autostart
+  override carrying `Hidden=true` in the user's home, **not** by deleting the
+  package-owned `/etc/xdg/autostart/org.dnf.AppCenter.Updater.desktop` — which
+  would return on the next package update and lose the original if it were
+  ever wanted back. Takes effect at the next login; the running process is left
+  alone and the role says so rather than implying it has gone.
+- **The Saturday sequence is now deliberate:**
+
+  | Time | What |
+  |---|---|
+  | 08:00 | `nobara-update.timer` — update, then verify the driver |
+  | 09:30 | `ha-backup.timer` — pull a Home Assistant config backup |
+  | 10:09 | Weekly Claude routine — report on both machines, notify |
+
+  In that order so the report describes the machine as it is *after* updating,
+  which is the state a decision actually gets made about. All three are
+  `Persistent`: this machine suspends after an hour idle and is off overnight,
+  so a fixed Saturday time will be missed regularly, and a silently skipped
+  week is the failure mode worth designing against.
+
 ## 2026-09-05 — Home Assistant brought into scope
 
 The repo now covers a second machine: the mini PC running Home Assistant OS

@@ -1,0 +1,188 @@
+---
+# Scheduled OS updates via Nobara's own updater, plus turning off the App
+# Centre's tray reminder now that updates are scheduled and reported.
+
+- name: Install the update script
+  ansible.builtin.copy:
+    src: nobara-update.sh
+    dest: "{{ os_updates_script }}"
+    owner: root
+    group: root
+    mode: "0750"
+  when: os_updates_manage_timer | bool
+
+- name: Verify nobara-sync is present
+  ansible.builtin.stat:
+    path: /usr/bin/nobara-sync
+  register: os_updates_nobara_sync
+  when: os_updates_manage_timer | bool
+
+# Refuses rather than installing a timer that would fail every week in the
+# journal where nobody looks.
+- name: Fail if nobara-sync is missing
+  ansible.builtin.fail:
+    msg: >-
+      /usr/bin/nobara-sync does not exist, so there is nothing for this timer to
+      run. Set os_updates_manage_timer: false if this machine is not Nobara.
+  when:
+    - os_updates_manage_timer | bool
+    - not os_updates_nobara_sync.stat.exists
+
+- name: Install the update service unit
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/nobara-update.service
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by roles/os_updates.
+      [Unit]
+      Description=Update this machine with Nobara's own updater
+      Documentation=file://{{ playbook_dir }}/roles/os_updates/README.md
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      Environment=INCLUDE_FLATPAK={{ os_updates_include_flatpak | lower }}
+      Environment=VERIFY_NVIDIA={{ os_updates_verify_nvidia | lower }}
+      ExecStart={{ os_updates_script }}
+      # A package transaction that hangs must not hang forever, but must also
+      # not be killed mid-transaction — an hour is generous enough that hitting
+      # it means something is genuinely wrong.
+      TimeoutStartSec=3600
+  register: os_updates_service
+  when: os_updates_manage_timer | bool
+
+- name: Install the update timer unit
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/nobara-update.timer
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by roles/os_updates.
+      #
+      # Saturday morning, ahead of the Home Assistant backup (09:30) and the
+      # weekly report (10:09), so the report describes the machine as it is
+      # after updating rather than before.
+      #
+      # Persistent because this machine sleeps after an hour idle and is off
+      # overnight — a fixed Saturday time will be missed regularly, and a
+      # silently skipped week is the failure mode to avoid.
+      [Unit]
+      Description=Weekly Nobara system update
+
+      [Timer]
+      OnCalendar={{ os_updates_on_calendar }}
+      Persistent={{ os_updates_persistent | lower }}
+      RandomizedDelaySec=600
+
+      [Install]
+      WantedBy=timers.target
+  register: os_updates_timer
+  when: os_updates_manage_timer | bool
+
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when:
+    - os_updates_manage_timer | bool
+    - os_updates_service.changed or os_updates_timer.changed
+
+- name: Enable and start the update timer
+  ansible.builtin.systemd_service:
+    name: nobara-update.timer
+    enabled: true
+    state: started
+  when: os_updates_manage_timer | bool
+
+# ---------------------------------------------------------------------------
+# App Centre tray reminder
+#
+# An XDG autostart override in the user's home, NOT a deletion of the
+# package-owned file in /etc/xdg/autostart — that would return on the next
+# package update, and deleting it loses the original if it is ever wanted back.
+#
+# become: false — this is per-user config. Under sudo it would land in root's
+# home and the desktop session would never read it, while the run reported
+# success. The same trap as roles/gaming and claude_desktop.
+# ---------------------------------------------------------------------------
+- name: Determine the desktop user
+  ansible.builtin.command: id -un
+  become: false
+  changed_when: false
+  check_mode: false
+  register: os_updates_user
+  when: os_updates_disable_appcenter_tray | bool
+
+- name: Fail if the autostart override would be written for root
+  ansible.builtin.fail:
+    msg: >-
+      This would write the autostart override into root's home, where the
+      desktop session never looks, and report success. Run the playbook as your
+      desktop user with --ask-become-pass, not under sudo.
+  when:
+    - os_updates_disable_appcenter_tray | bool
+    - os_updates_user.stdout == 'root'
+
+- name: Ensure the user autostart directory exists
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.config/autostart"
+    state: directory
+    mode: "0755"
+  become: false
+  when: os_updates_disable_appcenter_tray | bool
+
+- name: Disable the App Centre updater tray icon
+  ansible.builtin.copy:
+    dest: "{{ ansible_env.HOME }}/.config/autostart/{{ os_updates_appcenter_autostart }}"
+    mode: "0644"
+    content: |
+      # Managed by roles/os_updates.
+      #
+      # Overrides /etc/xdg/autostart/{{ os_updates_appcenter_autostart }} so the
+      # App Centre update tray icon and its reminders do not start. Updates are
+      # applied on a schedule by nobara-update.timer and summarised in the
+      # Saturday report, so the nagging is redundant.
+      #
+      # Hidden=true is the XDG way to suppress a system autostart entry from a
+      # user's home. The packaged file is left untouched, so this is reversible
+      # by deleting this file, and survives package updates.
+      [Desktop Entry]
+      Type=Application
+      Name={{ os_updates_appcenter_autostart | regex_replace('\.desktop$', '') }}
+      Hidden=true
+    backup: false
+  become: false
+  register: os_updates_tray_override
+  when: os_updates_disable_appcenter_tray | bool
+
+- name: Re-enable the App Centre updater tray icon
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.config/autostart/{{ os_updates_appcenter_autostart }}"
+    state: absent
+  become: false
+  when: not (os_updates_disable_appcenter_tray | bool)
+
+- name: Note that the tray icon persists until the next login
+  ansible.builtin.debug:
+    msg: >-
+      The App Centre updater is suppressed from the next login onwards. It is
+      still running in this session — close it from the tray, or run
+      `pkill -f dnf-app-center-updater`, if you want it gone now.
+  when:
+    - os_updates_disable_appcenter_tray | bool
+    - os_updates_tray_override.changed
+
+- name: Report the update schedule
+  ansible.builtin.debug:
+    msg: >-
+      Nobara updates: {{ os_updates_on_calendar }}
+      {{ 'including Flatpaks' if os_updates_include_flatpak else 'RPMs only' }},
+      NVIDIA module verified afterwards
+      {{ '(and rebuilt if missing)' if os_updates_verify_nvidia else '(verification OFF)' }}.
+      Never reboots. Run one now with
+      `sudo systemctl start nobara-update.service`, then
+      `journalctl -u nobara-update.service -n 50`.
+  when: os_updates_manage_timer | bool
