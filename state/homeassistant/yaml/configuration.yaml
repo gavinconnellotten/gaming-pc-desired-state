@@ -9,3 +9,10 @@ frontend:
 automation: !include automations.yaml
 script: !include scripts.yaml
 scene: !include scenes.yaml
+
+# Repo-managed configuration, deployed by roles/homeassistant.
+# Anything in packages/ is owned by the git repo — do not edit it here, and do
+# not put UI-created config in it. This keeps repo config and UI config from
+# overwriting each other.
+homeassistant:
+  packages: !include_dir_named packages

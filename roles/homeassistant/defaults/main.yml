@@ -154,3 +154,22 @@ ha_samba_slug: 1a32f091_sambanas2
 # How long to wait for Samba before giving up. Reloading a CIFS mount while the
 # server it points at is still starting simply fails again.
 ha_health_samba_wait: 180
+
+# ---------------------------------------------------------------------------
+# Repo-owned Home Assistant packages
+#
+# A "package" is Home Assistant's own mechanism for a self-contained lump of
+# YAML config — sensors, automations, scripts — in one file. Using it keeps
+# repo-managed config strictly separate from anything the UI writes, so the two
+# never overwrite each other. Same principle as the managed block in
+# /etc/fstab: own what is declared, leave the rest alone.
+#
+# Files in files/ha-packages/ are copied to /homeassistant/packages/ and
+# require `homeassistant: packages: !include_dir_named packages` in
+# configuration.yaml, which the role adds if it is missing.
+#
+# Applying these needs a Home Assistant restart, which the role does NOT do
+# automatically — restarting a media server mid-song to pick up a config change
+# is the owner's decision, not a side effect of running the playbook.
+ha_manage_packages: true
+ha_packages_dir: /homeassistant/packages

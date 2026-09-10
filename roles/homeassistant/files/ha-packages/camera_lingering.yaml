@@ -1,0 +1,152 @@
+# Camera lingering detection — LOG ONLY phase
+#
+# Managed by roles/homeassistant. Deployed to /homeassistant/packages/.
+# Do not edit on the Home Assistant machine; edit it here and re-run the role.
+#
+# The problem this solves
+# -----------------------
+# The owner does not want to know that someone walked past the house. He wants
+# to know when someone is *lingering* — around the driveway, or at the front
+# door (which the upstairs camera overlooks).
+#
+# Measured 2026-09-10, which is what the design rests on:
+#
+#   These sensors PULSE, they do not stay on. One person moving about for ~70
+#   seconds produced four separate on/off pulses of 0.4-10s each. So "person
+#   present for 30 seconds" cannot work; counting pulses in a rolling window
+#   can, and maps directly onto passing-versus-lingering.
+#
+#   The two cameras behave very differently:
+#
+#     Driveway   rate-limited to ~1 ONVIF event per minute, whatever happens
+#     Upstairs   up to 4 events per minute
+#
+#   So a count means different things on each, and one shared threshold would
+#   be wrong for both — the driveway would never reach an upstairs threshold.
+#   On the driveway the count is effectively "how many of the last 5 minutes
+#   had activity", which is a cleaner lingering signal than it sounds.
+#
+# Why the driveway watches motion and not people
+# ----------------------------------------------
+# The driveway camera DOES do person detection — the Tapo app fires person
+# alerts for it — but it does not publish person events over ONVIF, only
+# generic motion. Verified by walking in front of it: the app alerted, ONVIF
+# produced motion events, and no person sensor was ever created. The upstairs
+# camera's firmware does expose person detection over ONVIF; this one's does
+# not. Not a misconfiguration, and not fixable by a firmware update — the
+# camera reports itself up to date for its variant.
+#
+# THRESHOLDS BELOW ARE PLACEHOLDERS
+# ---------------------------------
+# They are set from 33 minutes of data recorded while deliberately walking
+# about in the rain, which is the opposite of a baseline. This package
+# deliberately does NOT alert. It writes logbook entries, and the counting
+# sensors accumulate history, so that after a few days of ordinary life the
+# thresholds can be set from what a postman, a rainy night and a real linger
+# actually score. Do not wire up notifications until that has happened.
+
+# ---------------------------------------------------------------------------
+# Counting sensors: how many detections in the last 5 minutes
+#
+# history_stats in `count` mode counts transitions into 'on' within a rolling
+# window. It recalculates when the source entity changes, so it keeps up with
+# events rather than lagging a fixed poll.
+# ---------------------------------------------------------------------------
+sensor:
+  - platform: history_stats
+    name: Driveway activity 5m
+    unique_id: driveway_activity_5m
+    entity_id: binary_sensor.tapo_c100_cell_motion_detection
+    state: "on"
+    type: count
+    end: "{{ now() }}"
+    duration:
+      minutes: 5
+
+  - platform: history_stats
+    name: Upstairs activity 5m
+    unique_id: upstairs_activity_5m
+    entity_id: binary_sensor.c100_person_detection
+    state: "on"
+    type: count
+    end: "{{ now() }}"
+    duration:
+      minutes: 5
+
+  # Longer window, for context when reading the history back. A linger looks
+  # different from a busy afternoon, and 30 minutes shows which one it was.
+  - platform: history_stats
+    name: Driveway activity 30m
+    unique_id: driveway_activity_30m
+    entity_id: binary_sensor.tapo_c100_cell_motion_detection
+    state: "on"
+    type: count
+    end: "{{ now() }}"
+    duration:
+      minutes: 30
+
+  - platform: history_stats
+    name: Upstairs activity 30m
+    unique_id: upstairs_activity_30m
+    entity_id: binary_sensor.c100_person_detection
+    state: "on"
+    type: count
+    end: "{{ now() }}"
+    duration:
+      minutes: 30
+
+# ---------------------------------------------------------------------------
+# Log-only automations
+#
+# No notifications. These write a logbook entry so threshold crossings are
+# searchable alongside the raw sensor history.
+#
+# mode: single plus a trailing delay is the cooldown — without it, every
+# subsequent pulse while still above the threshold would log again.
+# ---------------------------------------------------------------------------
+automation:
+  - id: camera_lingering_driveway_logonly
+    alias: "Lingering (log only) - Driveway"
+    description: >-
+      LOG ONLY. Records when driveway activity crosses the placeholder
+      threshold, so the real threshold can be chosen from data.
+    mode: single
+    max_exceeded: silent
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.driveway_activity_5m
+        above: 3
+    actions:
+      - action: logbook.log
+        data:
+          name: "Lingering candidate"
+          message: >-
+            Driveway: {{ states('sensor.driveway_activity_5m') }} detections in
+            5 min ({{ states('sensor.driveway_activity_30m') }} in 30 min).
+          entity_id: binary_sensor.tapo_c100_cell_motion_detection
+      # Cooldown. One incident should produce one entry, not one per pulse.
+      - delay:
+          minutes: 10
+
+  - id: camera_lingering_upstairs_logonly
+    alias: "Lingering (log only) - Upstairs / front door"
+    description: >-
+      LOG ONLY. Records when upstairs person detection crosses the placeholder
+      threshold, so the real threshold can be chosen from data.
+    mode: single
+    max_exceeded: silent
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.upstairs_activity_5m
+        above: 5
+    actions:
+      - action: logbook.log
+        data:
+          name: "Lingering candidate"
+          message: >-
+            Front door: {{ states('sensor.upstairs_activity_5m') }} person
+            detections in 5 min
+            ({{ states('sensor.upstairs_activity_30m') }} in 30 min).
+          entity_id: binary_sensor.c100_person_detection
+      - delay:
+          minutes: 10

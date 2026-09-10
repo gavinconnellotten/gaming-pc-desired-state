@@ -94,6 +94,69 @@ Every one was caught by running the thing, not by reading it:
   prefix test was needed, which reported every add-on as changed on every run.
   Found only by checking idempotency.
 
+### Camera lingering detection — log-only phase
+
+The requirement: not "someone walked past", which in a quiet suburb is noise,
+but "someone is hanging about" near the driveway or the front door.
+
+**Motion events now exist at all.** The `tplink` integration exposes only
+switches that *enable* detection at the camera — there was no sensor that fires
+when something is detected, so there was nothing to trigger from. Home
+Assistant's built-in **ONVIF** integration on port **2020** provides real
+binary sensors. It authenticates with the camera account rather than the
+TP-Link account, which is why it works while the `tplink` integration is
+returning `INTERNAL_QUERY_ERROR` on every query for both cameras.
+
+**What the sensors actually do, measured rather than assumed:**
+
+- **They pulse, they do not stay on.** One person moving about for ~70 seconds
+  produced four separate on/off pulses of 0.4–10s. "Person present for 30
+  seconds" could never fire; counting pulses in a rolling window works.
+- **The cameras differ, and it matters.** The driveway is rate-limited to ~1
+  ONVIF event per minute; the upstairs camera manages 4. One shared threshold
+  would have been wrong for both — the driveway could never reach an upstairs
+  threshold. The cap is useful here: the count becomes "how many of the last N
+  minutes had activity", a clean loitering measure.
+
+**A wrong conclusion, corrected by the owner.** Both `tplink` and ONVIF
+reported no person detection on the driveway camera, and this was read as
+"firmware too old" — the driveway runs 1.3.17 against the upstairs camera's
+1.5.7. The owner corrected it: the camera does person detection, it is enabled,
+and it is fully up to date for its variant. Two integrations agreeing meant
+"not exposed to them", not "not supported". Confirmed by test: the Tapo app
+fired a person alert while ONVIF produced only motion events.
+
+**A methodological catch worth recording.** The first history analysis copied
+`home-assistant_v2.db` without its `-wal` file and therefore missed the most
+recent events entirely — it showed no activity for a walk-past that had just
+happened. Copy the write-ahead log too, or the data silently ends minutes ago.
+
+**Also disproved by measurement:** ONVIF debug logging showed ~2 events per
+second arriving from the driveway camera during rain, which looked like rain
+was triggering constant motion. The database showed the actual sensor fired
+**11 times in 33 minutes, never more than once a minute** — the log chatter was
+webhook processing, not detections. Worth remembering before reacting to a busy
+log.
+
+**New `files/ha-packages/camera_lingering.yaml`** — four `history_stats`
+counting sensors (5 and 30 minute windows per camera) and two automations that
+write logbook entries and **send no alerts**. Thresholds in it are placeholders
+set from 33 minutes of data recorded while deliberately walking about in the
+rain, which is the opposite of a baseline. The log-only phase exists to gather
+real history first.
+
+**New `files/ha-deploy-packages.sh`** — copies only files that differ, adds the
+`packages: !include_dir_named packages` line to `configuration.yaml` if
+missing, and runs `ha core check` before reporting success. It deliberately
+does **not** restart Home Assistant: packages are read only at startup, but
+interrupting a media server mid-song as a side effect of a playbook run is the
+wrong default.
+
+Packages are used rather than `automations.yaml` because Home Assistant
+rewrites that file whenever anything is edited in the UI. A package is
+self-contained and untouched by the UI editor — the same principle as the
+managed block in `/etc/fstab`.
+
 ### The method lesson, again
 
 The first pass diagnosed the LLM configuration from config files and produced

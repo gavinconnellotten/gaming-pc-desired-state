@@ -280,3 +280,91 @@ never reads `secrets.yaml`.
   number. And in jq, `$c[.key] // null` falls through on `false` as well as
   `null`, so a stored `false` reads as absent — which made the script report
   `auto_update: unset -> unset` and fail verifying a correct value.
+
+## Camera lingering detection
+
+The requirement was specific: **not** "someone walked past", which in a quiet
+suburb is noise, but "someone is hanging about" near the driveway or the front
+door (which the upstairs camera overlooks).
+
+### What the sensors actually do, measured
+
+Everything below rests on measurement rather than assumption, because the
+obvious design does not work:
+
+**They pulse, they do not stay on.** One person moving about for ~70 seconds
+produced four separate on/off pulses of 0.4–10 seconds each. So a trigger of
+"person detected continuously for 30 seconds" would never fire. Counting
+pulses in a rolling window does work, and maps directly onto passing versus
+lingering.
+
+**The two cameras behave differently, and this matters:**
+
+| Camera | Event rate | A count of N means |
+|---|---|---|
+| Driveway | rate-limited to ~1/min | activity in N of the last N minutes |
+| Upstairs | up to 4/min | N detections — intensity as well as duration |
+
+One shared threshold would have been wrong for both: the driveway can never
+reach a threshold set for the upstairs camera. The driveway's cap is not a
+defect here — it makes the count a direct measure of *how many minutes* had
+activity, which is a clean loitering signal.
+
+### Why the driveway watches motion, not people
+
+The driveway camera **does** person detection — the Tapo app fires person
+alerts from it — but it does not publish person events over ONVIF, only
+generic motion. Verified rather than assumed: walking in front of it produced
+a person alert in the app, plenty of ONVIF motion events, and no person sensor
+was ever created. The upstairs camera's firmware exposes person detection over
+ONVIF; this one's does not, and it reports itself fully up to date for its
+variant.
+
+An earlier conclusion that this was a firmware-version problem was **wrong** —
+both `tplink` and ONVIF agreeing person detection was absent meant "not exposed
+to them", not "not supported".
+
+### ONVIF, not the tplink integration
+
+Motion sensors come from Home Assistant's built-in **ONVIF** integration on
+port **2020**, using the camera-account credentials set in the Tapo app.
+
+That matters because the `tplink` integration is currently broken for both
+cameras — it returns `INTERNAL_QUERY_ERROR` on every module query, so its
+switches and sensors are unusable. ONVIF authenticates separately and works
+regardless. Live view kept working throughout for the same reason: RTSP uses
+the camera account, the broken API uses the TP-Link account.
+
+ONVIF creates a binary sensor only **after the camera first sends that event
+type**. A missing sensor usually means "that event has not happened yet"
+rather than "unsupported".
+
+### Currently LOG ONLY — thresholds are placeholders
+
+`files/ha-packages/camera_lingering.yaml` defines four counting sensors and two
+automations that write logbook entries and **send no alerts**.
+
+The thresholds in it were set from 33 minutes of data recorded while
+deliberately walking about in the rain, which is the opposite of a baseline.
+The point of the log-only phase is to accumulate real history — what a postman
+scores, what a rainy night scores, what a genuine linger scores — and set the
+thresholds from that.
+
+**Do not wire up notifications until that data exists.**
+
+### Packages, and why config lives in one
+
+`automations.yaml` and `scripts.yaml` are rewritten by Home Assistant whenever
+anything is edited in the UI, so the repo cannot own them without the two
+clobbering each other. A **package** is Home Assistant's own mechanism for a
+self-contained lump of YAML config, merged in at startup and untouched by the
+UI editor — the same principle as the managed block in `/etc/fstab`.
+
+`ha-deploy-packages.sh` copies only files that differ, adds the
+`packages: !include_dir_named packages` line to `configuration.yaml` if it is
+missing, and runs `ha core check` before reporting success.
+
+**It does not restart Home Assistant.** Packages are read only at startup, so a
+change does nothing until a restart — but restarting a media server and voice
+assistant mid-song as a side effect of a playbook run is the wrong default.
+The script says when a restart is due and leaves it to a human.

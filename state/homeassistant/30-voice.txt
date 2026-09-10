@@ -10,7 +10,7 @@
   "prefer_local_intents": false,
   "stt_engine": "stt.faster_whisper",
   "tts_engine": "tts.piper",
-  "tts_voice": "en_US-ryan-high",
+  "tts_voice": "en_GB-northern_english_male-medium",
   "wake_word_entity": null
 }
 

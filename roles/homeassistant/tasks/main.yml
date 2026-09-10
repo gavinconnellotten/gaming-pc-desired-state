@@ -177,6 +177,47 @@
   when: ha_manage_timer | bool
 
 # ---------------------------------------------------------------------------
+# Repo-owned Home Assistant packages
+#
+# Deliberately does not restart Home Assistant — packages are only read at
+# startup, and interrupting a media server mid-song as a side effect of a
+# playbook run is the wrong default. The script says when a restart is due.
+# ---------------------------------------------------------------------------
+- name: Install the package deploy script
+  ansible.builtin.copy:
+    src: ha-deploy-packages.sh
+    dest: "{{ ha_home }}/.local/bin/ha-deploy-packages.sh"
+    mode: "0755"
+  become: false
+  when: ha_manage_packages | bool
+
+- name: Deploy Home Assistant packages
+  ansible.builtin.command: "{{ ha_home }}/.local/bin/ha-deploy-packages.sh"
+  become: false
+  environment:
+    HA_HOST: "{{ ha_host }}"
+    HA_USER: "{{ ha_ssh_user }}"
+    SRC: "{{ role_path }}/files/ha-packages"
+    DEST: "{{ ha_packages_dir }}"
+  register: ha_packages_result
+  # multiline ^ anchor, so this matches a line STARTING "changed:" and not the
+  # "unchanged:" lines — the same substring trap that made the add-on task
+  # report every item as changed on every run.
+  changed_when: ha_packages_result.stdout is search('^changed:', multiline=True)
+  failed_when: ha_packages_result.rc != 0
+  when:
+    - ha_manage_packages | bool
+    - ha_ssh_check.rc == 0
+
+- name: Report that Home Assistant needs restarting for package changes
+  ansible.builtin.debug:
+    msg: "{{ ha_packages_result.stdout_lines }}"
+  when:
+    - ha_manage_packages | bool
+    - ha_packages_result is defined
+    - ha_packages_result.changed | default(false)
+
+# ---------------------------------------------------------------------------
 # Add-on settings
 #
 # Enforced over the Supervisor API, merging only the named keys. See
