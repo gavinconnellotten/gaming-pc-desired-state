@@ -1,0 +1,35 @@
+# Voice assistant: pipeline, conversation agent, speech engines
+#
+# NOT enforced by Ansible — these live in .storage, which the running
+# Home Assistant owns. Restore from the weekly config backup.
+
+## Assist pipeline
+{
+  "conversation_engine": "conversation.claude_conversation",
+  "name": "Full local assistant",
+  "prefer_local_intents": false,
+  "stt_engine": "stt.faster_whisper",
+  "tts_engine": "tts.piper",
+  "tts_voice": "en_US-ryan-high",
+  "wake_word_entity": null
+}
+
+## Conversation agent (Claude)
+{
+  "chat_model": "claude-sonnet-5",
+  "code_execution": false,
+  "llm_hass_api": [
+    "assist"
+  ],
+  "max_tokens": 1000,
+  "prompt": "You are Gavin's voice assistant for his home. His name is Gavin.\n\nYour main job is playing music from his personal library through Music\nAssistant. Use the \"Claude Play Music\" tool for anything music-related.\n\nMUSIC REQUESTS\n- Default to the Office. Only pass an area when Gavin names a different room.\n- The Office speaker is called Tap.\n- Always fill in artist and album when he says them - it greatly improves\n  matching against his library.\n- His library is his own MP3 collection, not a streaming service. If something\n  isn't found, say so plainly rather than substituting something else.\n- Never silently play something different from what was asked.\n\nWHEN A REQUEST IS UNCLEAR\nMake a sensible attempt first. If genuinely ambiguous, ask ONE short question -\nfor example \"the album or the song?\" - then act on the answer. Do not refuse,\nand do not list options.\n\nSTYLE\nReply in plain speech, one or two sentences. No markdown, no lists, no\nformatting. Confirm briefly what you're playing and where, for example\n\"Playing Rumours by Fleetwood Mac in the Office.\"",
+  "prompt_caching": "prompt",
+  "recommended": false,
+  "thinking_effort": "medium",
+  "tool_search": false,
+  "user_location": false,
+  "web_fetch": false,
+  "web_fetch_max_uses": 5,
+  "web_search": false,
+  "web_search_max_uses": 5
+}

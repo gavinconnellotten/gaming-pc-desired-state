@@ -3,6 +3,105 @@
 Dated log of what's been done to `gaming-pc`, and whether it's been codified
 into this repo yet.
 
+## 2026-09-10 — Voice music control, and bringing Home Assistant under management
+
+Voice requests to play music were "constantly misunderstood". Four things were
+wrong. **Only one of them was the cause.**
+
+### The cause: Whisper was on the `tiny` speech model
+
+It transcribed "Love Is All Right" as "love is all as all right". The music
+automation searched the library for that literally and failed. The log said so
+in plain text, and had done for days:
+
+```
+Could not resolve ['the love is all right'] to playable media item
+Could not resolve ['love is all as all right'] to playable media item
+```
+
+Changed to `small`. Every song and album tested then played first time. On this
+i5-7500T that costs a second or two per phrase — a good trade for being
+understood. Now pinned in `roles/homeassistant`.
+
+### Three real defects that were NOT the cause
+
+Fixed anyway, because each would have bitten later:
+
+- **`script.claude_play_music` had an empty description.** That string *is* the
+  tool description the LLM sees; without it Claude cannot know the tool's seven
+  arguments or when to call it. The blueprint's own documentation says in bold
+  to set it.
+- **Its `default_player` was `media_player.music_player_daemon_2`, which does
+  not exist** — verified against the entity registry and the deleted-entity
+  list. The player had been renamed `media_player.tap`. Anything reaching
+  Claude without naming a room targeted nothing. The log confirmed it was still
+  being hit: `Referenced entities media_player.music_player_daemon_2 are
+  missing`.
+- **The prompt told Claude to give up.** *"if you are confused by a request,
+  state simply 'sorry I didn't catch that'"* — turning every near-miss into a
+  dead end instead of a clarifying question. Rewritten, and the model moved off
+  `recommended` (which had selected Haiku 4.5) to Sonnet 5.
+
+### Two voice paths, and which one actually wins
+
+| Path | Mechanism | Runs when |
+|---|---|---|
+| `automation.music_assistant_voice_automation` | `conversation` sentence triggers, literal search | Catches "play X" first |
+| `script.claude_play_music` | Claude tool call | Phrasings the triggers miss |
+
+The automation wins for ordinary phrasing **even though the pipeline sets
+`prefer_local_intents: false`**. Every failure in the log came from it, none
+from Claude. With transcription fixed it is reliable and faster than an LLM
+round-trip, so it is deliberately left enabled with Claude as the fallback.
+
+### Home Assistant configuration is now managed, with an honest split
+
+`.storage` — the Claude prompt and model, assist pipeline, registries, voice
+exposure — is owned by the running Home Assistant and rewritten on its own
+schedule. Writing it from Ansible is the trap this repo already knows from
+Plasma and qBittorrent. So:
+
+| Layer | Handling |
+|---|---|
+| Add-on options and Supervisor properties | **Enforced** — `ha-addon-options.sh` |
+| YAML files | **Captured** to `state/homeassistant/` |
+| `.storage` settings | **Captured**; restored from the weekly backup |
+
+- **New `roles/homeassistant/files/ha-addon-options.sh`** — enforces named
+  add-on settings over the Supervisor API. Merges rather than replaces, writes
+  only on a real difference, and verifies per key afterwards.
+- **New `scripts/capture-homeassistant.sh`** — read-only, redacted capture into
+  `state/homeassistant/`. Never reads `secrets.yaml`. Verified: the Plex claim
+  code is masked.
+- **Add-on update policy codified** — everything pinned except Music Assistant,
+  which stays on auto-update deliberately.
+
+### Four bugs found in this repo's own new tooling, all by testing
+
+Every one was caught by running the thing, not by reading it:
+
+- **Options and Supervisor properties are different fields.** Sending
+  `auto_update` inside `options` is accepted by the API and then silently
+  dropped, because it is not in the add-on's schema. Plex briefly received a
+  key it ignored.
+- **Whole-object string comparison is wrong.** Piper returns `length_scale` as
+  `1.0`; a desired `1` differs as text and matches as a number. That produced a
+  permanent false "changed" and then a verification failure on a correct value.
+- **`$c[.key] // null` in jq falls through on `false` as well as `null`**, so a
+  stored `false` reads as absent — reporting `auto_update: unset -> unset` and
+  failing to verify a value that was already right.
+- **`"'changed:' in stdout"` matches `"unchanged:"`.** A substring test where a
+  prefix test was needed, which reported every add-on as changed on every run.
+  Found only by checking idempotency.
+
+### The method lesson, again
+
+The first pass diagnosed the LLM configuration from config files and produced
+three plausible causes, none of which was it. The answer was in
+`ha core logs` the whole time, in plain English, timestamped. `CLAUDE.md` says
+to go to the evidence of actual failures first; that is now twice in one week
+it was not followed.
+
 ## 2026-09-06 — Plex playback failure, and what it exposed
 
 A household member could not stream a show; Plex reported `s3015` (a *media*

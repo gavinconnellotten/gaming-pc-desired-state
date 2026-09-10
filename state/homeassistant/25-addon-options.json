@@ -1,0 +1,83 @@
+# Add-on options. Only the keys listed in roles/homeassistant are
+# enforced; the rest are captured so drift is visible.
+
+## 1a32f091_sambanas2
+{
+  "auto_update": false,
+  "clean_upgrade_dir": false,
+  "disable_ipv6": true,
+  "factory_reset": false,
+  "leave_front_door_open": false,
+  "log_level": "warning",
+  "srat_update_channel": "none",
+  "use_external_kernel_modules": false
+}
+
+## a0d7b954_plex
+{
+  "claim_code": "REDACTED"
+}
+
+## ad7c61ed_ollama-ha
+{
+  "gpu": false,
+  "start_auth": false
+}
+
+## core_openwakeword
+{
+  "debug_logging": false,
+  "threshold": 0.5,
+  "trigger_level": 1
+}
+
+## core_piper
+{
+  "debug_logging": false,
+  "length_scale": 1.0,
+  "noise_scale": 0.667,
+  "noise_w": 0.333,
+  "sentence_silence": 0.0,
+  "speaker": 0,
+  "update_voices": true,
+  "voice": "en_US-ryan-high"
+}
+
+## core_ssh
+{
+  "apks": [],
+  "authorized_keys": [
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIW2I+9NBuBhJ6rlFmDWPjW8SwDpSuviNL8XqKLyFHCm gavin@gaming-pc"
+  ],
+  "password": "",
+  "server": {
+    "tcp_forwarding": false
+  }
+}
+
+## core_whisper
+{
+  "beam_size": 0,
+  "custom_model_type": "faster-whisper",
+  "debug_logging": false,
+  "language": "en",
+  "local_files_only": false,
+  "model": "small",
+  "sherpa_streaming": false,
+  "stt_library": "auto",
+  "vad_clip": false,
+  "whisper_task": "transcribe"
+}
+
+## d4261985_bluetooth_audio_manager
+{
+  "log_level": "info",
+  "mpd_password": ""
+}
+
+## d5369777_music_assistant
+{
+  "log_level": "info",
+  "safe_mode": false
+}
+

@@ -1,0 +1,33 @@
+# Music Assistant players and areas
+
+## Media players
+  media_player.home_assistant_voice_0a6597_media_player esphome            enabled
+  media_player.home_assistant_voice_0a6597       music_assistant    device
+  media_player.music_player_daemon               mpd                enabled
+  media_player.shield_2                          music_assistant    device
+  media_player.shield                            cast               enabled
+  media_player.tap                               music_assistant    enabled
+  media_player.vx6hgv2jh0_2                      music_assistant    enabled
+  media_player.vx6hgv2jh0                        music_assistant    device
+
+## Devices and their areas
+  Home Assistant Voice 0a6597        office           user
+  Music Assistant                    -                enabled
+  Music Player Daemon                office           enabled
+  SHIELD                             living_room      enabled
+  SHIELD                             living_room      user
+  Tap                                office           enabled
+  VX6HGV2JH0                         -                enabled
+  VX6HGV2JH0                         office           user
+
+## Storage mounts (CIFS from the local Samba add-on — see README)
+- name: ELEMENTS
+  server: 172.30.32.1
+  share: ELEMENTS
+  state: active
+  usage: media
+- name: SSD
+  server: 172.30.32.1
+  share: SSD
+  state: active
+  usage: media

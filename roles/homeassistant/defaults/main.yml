@@ -70,6 +70,79 @@ ha_manage_timer: true
 # Assistant reboot at 3am is repaired when gaming-pc next wakes, not
 # immediately. Closing that gap properly needs an automation inside Home
 # Assistant itself.
+# ---------------------------------------------------------------------------
+# Add-on settings this repo pins
+#
+# `options` are the add-on's own settings; `props` are Supervisor-level
+# properties. They go to different places in the same API call and getting it
+# wrong fails silently — see roles/homeassistant/files/ha-addon-options.sh.
+#
+# Only the keys listed here are enforced. Everything else in each add-on's
+# configuration is left untouched, so this cannot clobber a setting the repo
+# does not know about.
+ha_manage_addon_settings: true
+ha_addon_settings:
+  # Speech-to-text. THE setting that made voice control work.
+  #
+  # This was on `tiny` until 2026-09-10, which transcribed "Love Is All Right"
+  # as "love is all as all right". Music requests then failed against the
+  # library and the whole voice assistant appeared to misunderstand everything.
+  # `small` costs a second or two per phrase on this i5-7500T and gets the
+  # words right, which is the entire game for music requests full of proper
+  # nouns. Do not drop this back to tiny or base without testing song titles.
+  - slug: core_whisper
+    name: Whisper (speech-to-text)
+    options:
+      model: small
+    restart: true
+
+  # Storage. Everything media depends on this, and an unattended restart drops
+  # Home Assistant's own CIFS mounts — see the mount/Plex healing above. It has
+  # TWO auto_update settings and turning off only one looks done.
+  - slug: 1a32f091_sambanas2
+    name: Samba NAS2
+    options:
+      auto_update: false
+    props:
+      auto_update: false
+
+  # Plex, Terminal & SSH: the media server and the route Ansible reaches this
+  # machine by. Neither should change unattended.
+  - slug: a0d7b954_plex
+    name: Plex Media Server
+    props:
+      auto_update: false
+  - slug: core_ssh
+    name: Terminal & SSH
+    props:
+      auto_update: false
+
+  # Voice pipeline and the rest: pinned so the voice stack does not shift
+  # underneath a working configuration.
+  - slug: core_piper
+    name: Piper (text-to-speech)
+    props:
+      auto_update: false
+  - slug: core_openwakeword
+    name: openWakeWord
+    props:
+      auto_update: false
+  - slug: ad7c61ed_ollama-ha
+    name: Ollama
+    props:
+      auto_update: false
+  - slug: d4261985_bluetooth_audio_manager
+    name: Bluetooth Audio Manager
+    props:
+      auto_update: false
+
+  # Deliberately left on auto-update, 2026-09-05: low blast radius, and it
+  # gains features quickly. The exception that makes the rule explicit.
+  - slug: d5369777_music_assistant
+    name: Music Assistant
+    props:
+      auto_update: true
+
 ha_manage_health_check: true
 ha_health_interval: 15min
 ha_health_boot_delay: 2min

@@ -197,3 +197,86 @@ documented way to make a USB disk visible to add-ons.
 The real consequence is that **a Samba NAS2 restart drops Home Assistant's own
 media mounts**, which is why every add-on except Music Assistant now has
 auto-update disabled, and why `check-homeassistant.sh` reports mount state.
+
+## Voice control and Music Assistant
+
+### What went wrong, and what actually fixed it
+
+Voice music requests "constantly misunderstood" what was asked. Four things
+were wrong; only one of them mattered.
+
+**The cause: Whisper was running the `tiny` speech model.** It transcribed
+"Love Is All Right" as "love is all as all right", the music automation
+searched the library for that literally, and failed. The logs said so plainly:
+
+```
+Could not resolve ['the love is all right'] to playable media item
+Could not resolve ['love is all as all right'] to playable media item
+```
+
+Moving to `small` fixed it outright — every song and album tested played
+first time. On this i5-7500T that costs a second or two per phrase, which is a
+good trade for being understood. `model: small` is pinned in
+`defaults/main.yml` for that reason.
+
+**Three real defects that were NOT the cause**, fixed anyway because each
+would have bitten later:
+
+- `script.claude_play_music` had an **empty description**. That description is
+  the tool description the LLM sees; without it Claude cannot know the tool's
+  seven arguments or when to use it. The blueprint's own docs say in bold to
+  set it.
+- Its `default_player` was `media_player.music_player_daemon_2`, **which does
+  not exist** — the player had been renamed to `media_player.tap`. Anything
+  falling through to Claude without naming a room targeted nothing.
+- The conversation prompt instructed Claude to say *"sorry I didn't catch
+  that"* when confused, turning every near-miss into a dead end rather than a
+  clarifying question.
+
+### Two voice paths, and which one wins
+
+There are two, and it is worth knowing which is running:
+
+| Path | Mechanism | When it runs |
+|---|---|---|
+| `automation.music_assistant_voice_automation` | `conversation` sentence triggers, literal library search | Catches "play X" phrases first |
+| `script.claude_play_music` | Claude tool call | Anything the sentence triggers miss |
+
+The automation wins for ordinary phrasing, even though the pipeline has
+`prefer_local_intents: false`. It is faster than an LLM round-trip and, with
+accurate transcription, reliable — so it is deliberately left enabled, with
+Claude as the fallback for phrasings it does not match.
+
+A benign `Template variable warning: 'media_name' is undefined` appears on
+every request from that blueprint. Cosmetic; it does not affect playback.
+
+### What is enforced, and what is only captured
+
+`.storage` — the Claude prompt and model, the assist pipeline, entity and area
+registries, what is exposed to voice — is owned by the running Home Assistant,
+which rewrites it on its own schedule. Writing it from Ansible is the same trap
+as editing Plasma or qBittorrent config underneath a running application.
+
+| Layer | Handling |
+|---|---|
+| Add-on options and Supervisor properties | **Enforced**, via `ha-addon-options.sh` |
+| YAML files (scripts, automations, blueprints) | **Captured** to `state/homeassistant/` |
+| `.storage` settings | **Captured**; restored from the weekly config backup |
+
+Run `./scripts/capture-homeassistant.sh` and `git diff state/homeassistant/`
+to see what has drifted. The capture is read-only, redacts credentials, and
+never reads `secrets.yaml`.
+
+### Three traps in ha-addon-options.sh, all paid for
+
+- **Options and properties are different things.** `model` is an option;
+  `auto_update` is a Supervisor property. Sending a property inside `options`
+  is accepted by the API and then silently dropped, because it is not in the
+  add-on's schema.
+- **Samba NAS2 has both.** A Supervisor `auto_update` property *and* its own
+  option of the same name. Turning off one looks done.
+- **Never compare whole objects as strings.** Home Assistant returns Piper's
+  `length_scale` as `1.0`, so a desired `1` differs as text and matches as a
+  number. And in jq, `$c[.key] // null` falls through on `false` as well as
+  `null`, so a stored `false` reads as absent — which made the script report
+  `auto_update: unset -> unset` and fail verifying a correct value.

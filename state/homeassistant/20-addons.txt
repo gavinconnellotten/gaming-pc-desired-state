@@ -1,0 +1,15 @@
+# Add-ons, with the update policy this repo pins
+#
+# auto_update false is deliberate for anything media or access depends on.
+# See roles/homeassistant/defaults/main.yml.
+
+SLUG                               VERSION        AUTO     STATE
+1a32f091_sambanas2                 2026.7.0-rc11  false    started
+a0d7b954_plex                      4.1.1          false    started
+ad7c61ed_ollama-ha                 0.3.6          false    started
+core_openwakeword                  2.1.1          false    started
+core_piper                         2.3.4          false    started
+core_ssh                           10.4.0         false    started
+core_whisper                       3.5.3          false    started
+d4261985_bluetooth_audio_manager   2.1.0          false    started
+d5369777_music_assistant           2.10.2         true     started

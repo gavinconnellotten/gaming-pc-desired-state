@@ -65,6 +65,8 @@ diagnostics gotcha below; this distinction is load-bearing.
 | System tuning | **Managed** — `roles/system_tuning`. Core dump storage caps |
 | Home Assistant | **Managed from here** — `roles/homeassistant`. Weekly config backup pulled to this machine. HAOS is deliberately *not* an Ansible host |
 | Health reporting | `scripts/check-gaming-pc.sh`, `scripts/check-homeassistant.sh` — read-only, plus a weekly Claude routine |
+| HA add-on settings | **Enforced** — `roles/homeassistant`, via the Supervisor API. Whisper model pinned to `small` |
+| HA config capture | `scripts/capture-homeassistant.sh` → `state/homeassistant/` — captured, not enforced |
 
 ## Manage the delta, not the distribution
 
@@ -270,6 +272,39 @@ property and its own internal option. Turning off one looks done.
 8900 MB for a full one, which is mostly Ollama's models. The ~67 GB TV library
 on the HA system disk is therefore protected by nothing — an accepted risk, not
 an oversight.
+
+### Voice control and music — the one setting that mattered
+
+Voice music requests failed constantly until 2026-09-10. The cause was
+**Whisper running the `tiny` speech model**: it heard "Love Is All Right" as
+"love is all as all right", and the music automation searched the library for
+that literally. `roles/homeassistant` now pins `model: small`. Do not drop it
+back without testing real song titles — proper nouns are the whole difficulty.
+
+Three genuine defects were found and fixed alongside it, **none of which were
+the cause**: an empty description on `script.claude_play_music` (that string is
+the tool description the LLM sees), a `default_player` pointing at an entity
+that no longer existed, and a prompt instructing Claude to say "sorry I didn't
+catch that" rather than ask a clarifying question.
+
+There are **two voice paths**, and the non-LLM one usually wins: a
+`conversation` sentence-trigger automation catches "play X" before Claude sees
+it, even with `prefer_local_intents: false`. It is left enabled deliberately —
+faster than an LLM round-trip, and reliable now transcription is accurate.
+
+What can and cannot be managed:
+
+| Layer | Handling |
+|---|---|
+| Add-on options and Supervisor properties | **Enforced** |
+| YAML files | **Captured** to `state/homeassistant/` |
+| `.storage` (Claude prompt/model, pipeline, registries) | **Captured**; restored from the weekly backup |
+
+`.storage` is owned by the running Home Assistant, which rewrites it — the same
+trap as Plasma and qBittorrent config. Don't try to enforce it.
+
+Run `./scripts/capture-homeassistant.sh` then `git diff state/homeassistant/`
+to see drift. It redacts credentials and never reads `secrets.yaml`.
 
 ## Updates
 

@@ -1,0 +1,7 @@
+# Blueprints in use
+
+  blueprints/automation/homeassistant/motion_light.yaml
+  blueprints/automation/homeassistant/notify_leaving_zone.yaml
+  blueprints/automation/music-assistant/mass_assist_blueprint_en.yaml
+  blueprints/script/homeassistant/confirmable_notification.yaml
+  blueprints/script/music-assistant/llm_voice_script.yaml

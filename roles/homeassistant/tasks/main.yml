@@ -177,6 +177,53 @@
   when: ha_manage_timer | bool
 
 # ---------------------------------------------------------------------------
+# Add-on settings
+#
+# Enforced over the Supervisor API, merging only the named keys. See
+# files/ha-addon-options.sh for why options and properties are handled
+# separately, and why comparison is per-key rather than whole-object.
+# ---------------------------------------------------------------------------
+- name: Install the add-on settings script
+  ansible.builtin.copy:
+    src: ha-addon-options.sh
+    dest: "{{ ha_home }}/.local/bin/ha-addon-options.sh"
+    mode: "0755"
+  become: false
+  when: ha_manage_addon_settings | bool
+
+- name: Enforce add-on settings
+  ansible.builtin.command: "{{ ha_home }}/.local/bin/ha-addon-options.sh"
+  become: false
+  environment:
+    HA_HOST: "{{ ha_host }}"
+    HA_USER: "{{ ha_ssh_user }}"
+    SLUG: "{{ item.slug }}"
+    DESIRED: "{{ item.options | default({}) | to_json }}"
+    PROPS: "{{ item.props | default({}) | to_json }}"
+    RESTART: "{{ (item.restart | default(false)) | lower }}"
+  register: ha_addon_result
+  # startswith, NOT `'changed:' in stdout` — the script's other output is
+  # "unchanged: ..." which CONTAINS "changed:", so a substring test reports
+  # every add-on as changed on every run. Caught by checking idempotency
+  # rather than by reading the code.
+  changed_when: ha_addon_result.stdout.startswith('changed:')
+  failed_when: ha_addon_result.rc != 0
+  loop: "{{ ha_addon_settings }}"
+  loop_control:
+    label: "{{ item.name | default(item.slug) }}"
+  when:
+    - ha_manage_addon_settings | bool
+    - ha_ssh_check.rc == 0
+
+- name: Report add-on settings that changed
+  ansible.builtin.debug:
+    msg: "{{ ha_addon_result.results | selectattr('changed') | map(attribute='stdout') | list }}"
+  when:
+    - ha_manage_addon_settings | bool
+    - ha_addon_result is defined
+    - ha_addon_result.results | default([]) | selectattr('changed') | list | length > 0
+
+# ---------------------------------------------------------------------------
 # Mount/Plex self-healing
 #
 # See defaults/main.yml for the failure this repairs. Runs on a short interval

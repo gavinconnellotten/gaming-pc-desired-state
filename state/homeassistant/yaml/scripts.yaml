@@ -1,0 +1,33 @@
+claude_play_music:
+  use_blueprint:
+    path: music-assistant/llm_voice_script.yaml
+    input:
+      default_player: media_player.tap
+  alias: Claude Play Music
+  description: >-
+    Play music on the house speakers. Use this tool whenever the user asks to
+    play, put on, or listen to any music - a song, an artist, an album, a
+    playlist, a genre, a radio station, or a vague mood or description such as
+    "something relaxing" or "the best songs by Queen".
+
+    The tool takes these arguments: media_id, media_type, artist, album,
+    radio_mode, area, shuffle.
+
+    media_id, media_type and shuffle are ALWAYS required and must always be
+    supplied. media_id is the thing to play - a track name, album name, artist
+    name, playlist name or radio station. If several items are wanted, separate
+    them with a semicolon. media_type must be one of: track, artist, album,
+    playlist, radio. shuffle is true only if the user asked to shuffle or for
+    music in a random order, otherwise false.
+
+    artist and album are optional and should be filled in when the user names
+    them, which greatly improves matching accuracy. Leave them empty when they
+    are not relevant.
+
+    area is optional. Supply it only when the user names a room. If no room is
+    mentioned, omit it and the music plays in the Office by default.
+
+    radio_mode is optional and should be true only when the user asks for
+    something similar to, or in the style of, an artist or track.
+
+    Prefer this tool over any generic media player action for music requests.

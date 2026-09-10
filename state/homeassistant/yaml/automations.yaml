@@ -1,0 +1,7 @@
+- id: '1779754386002'
+  alias: Music Assistant Voice Automation
+  description: ''
+  use_blueprint:
+    path: music-assistant/mass_assist_blueprint_en.yaml
+    input:
+      default_player_entity_id_input: media_player.tap
