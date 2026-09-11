@@ -64,6 +64,36 @@ so, which is what it looked like on 2026-09-12.
 its Android TV OS, so there is nothing to control. Only the Shield is worth
 pairing. Do not propose adding the Philips entry.
 
+**Resolved the same day.** The ignore entry could not be found anywhere in the
+UI — that section is genuinely buried in this Home Assistant version — so it
+was deleted through the Core API instead:
+
+```
+DELETE /api/config/config_entries/entry/<entry_id>   -> {"require_restart":false}
+```
+
+Home Assistant then rediscovered the Shield over zeroconf, pairing succeeded
+with the PIN shown on the TV, and the entry went `source=ignore, not_loaded`
+to `source=zeroconf, loaded`. The stale certificates from 8 May were irrelevant
+and pairing generated fresh ones.
+
+It now provides `remote.shield` and `media_player.shield_3` — power, volume,
+current app and app launching, pushed to Home Assistant rather than polled.
+Confirmed live: `current_activity: com.google.android.tvlauncher`, volume 0.8.
+
+**There are now three `media_player.shield*` entities**, which is a trap worth
+knowing about:
+
+| Entity | Integration | Use |
+|---|---|---|
+| `media_player.shield` | Cast | casting to the device |
+| `media_player.shield_2` | Music Assistant | disabled |
+| `media_player.shield_3` | Android TV Remote | power, volume, apps |
+
+Nothing is wrong, but an automation written against the wrong one will fail
+in a way that looks like the Shield is broken. Worth renaming in the UI if
+these get used.
+
 ### New: scripts/check-shield.sh
 
 Third in the set alongside `check-gaming-pc.sh` and `check-homeassistant.sh` —
