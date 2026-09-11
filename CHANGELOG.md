@@ -57,7 +57,12 @@ certificates from 8 May exist in `.storage` and are harmless.
 Worth knowing for next time: a config entry with no entities and no log errors
 is more likely `source=ignore` than a failure. Adding the integration properly
 requires un-ignoring it first, since Home Assistant will not re-offer an
-ignored device.
+ignored device — and the Add Integration flow fails quietly rather than saying
+so, which is what it looked like on 2026-09-12.
+
+**The Philips TV at .106 stays ignored, deliberately.** The owner does not use
+its Android TV OS, so there is nothing to control. Only the Shield is worth
+pairing. Do not propose adding the Philips entry.
 
 ### New: scripts/check-shield.sh
 
