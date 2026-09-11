@@ -3,6 +3,81 @@
 Dated log of what's been done to `gaming-pc`, and whether it's been codified
 into this repo yet.
 
+## 2026-09-12 — DP-2 cable fault declared resolved
+
+**The cable was the cause. Eleven days and 17 wake cycles after the change, the
+640x480 fault has not happened once.** The verdict was deferred on 5 Sep with
+only six wake cycles of evidence; there is now enough to close it.
+
+Three independent indicators agree, which is why this is a verdict and not
+another hopeful reading:
+
+| Indicator | Reading |
+|---|---|
+| `640x480` anywhere in the journal since 1 Sep 14:22 | **0 occurrences** |
+| `card1-DP-2` / `card1-DP-3` connector state now | both `connected`, **38 modes**, topping out at 2560x1440 |
+| Junk 640x480 profile written to `kwinoutputconfig.json` | **none** — and the one stale profile left over from before the change has since been pruned by KWin |
+
+The third is the useful one going forward. Every real occurrence of this fault
+wrote a fresh junk 640x480 profile into `kwinoutputconfig.json`, so counting
+those profiles is a fault counter that survives journal rotation — which
+`journalctl` does not.
+
+### The disconnect count fell, but the character of it changed more than the number
+
+Raw DP-2 DDC disconnect episodes since the cable change: **7 across 17 wake
+cycles (0.41 per cycle)**, against **14 across 15 (0.93 per cycle)** before it.
+DP-3: **0**, against 2 before.
+
+A halved rate would be a weak result on its own — the fault was intermittent,
+so halving could be luck. What settles it is that **none of the seven is the
+fault**. Every one recovered by itself within 3–10 seconds with full EDID and
+all 38 modes, and **not one shows a kernel-level DisplayPort event** — no drm
+hotplug, no link-training failure. The old fault was a kernel link drop where
+the EDID was never re-delivered and only power-cycling the monitor recovered
+it.
+
+What those seven actually were, where the journal says so at the same second:
+
+- **2 were suspend transitions** (5 Sep 08:24, 6 Sep 22:43) — the display drops
+  as the machine goes down or comes back, which is expected.
+- **2 were the NVIDIA pageflip bug** (9 Sep 12:25 and 12:39), logged as
+  `Pageflip timed out! This is a bug in the nvidia-drm kernel driver` and
+  `Flip event timeout on head 0` in the same second. KWin drops and re-creates
+  its outputs; libddcutil reports that as a disconnect.
+- **1 was a USB hub losing power** (10 Sep 11:24) — the `usb 3-4` hub, webcam
+  and its siblings all disconnected at 11:24:53 and returned at 11:25:12, with
+  the display churn in between.
+- **2 have no identified cause** (5 Sep 19:35, 6 Sep 17:21). Recorded as
+  unexplained rather than attributed to something adjacent. The 6 Sep one sits
+  13 seconds before a `pm_fs_sync` hung-task warning, which is suggestive and
+  not evidence.
+
+All seven share one signature — `There are no outputs - creating placeholder
+screen` across every Plasma client — meaning KWin briefly had no outputs at
+all, a compositor event rather than a monitor dropping its link.
+
+**The step-4 PowerDevil-restart false positive did not apply to any of them.**
+PowerDevil's PID was unchanged across all seven (2172, 2162), so these are not
+service restarts re-detecting displays. Worth recording so the filter isn't
+assumed to have done work it didn't.
+
+### The zero is real, not a dead watcher
+
+Checked, because "no events logged" and "nothing is logging" look identical in
+a log file. `dp-link-watch.service` is active with pid 1848, matching the last
+`watch started` line, and PowerDevil — the actual source of the DDC events — is
+active. The quiet stretch since 11 Sep covers this morning's 08:28 wake
+genuinely.
+
+### What remains
+
+Nothing to do. The remaining variables that would have been next — the
+monitor's DisplayPort port and the GPU port, isolated by swapping the two
+monitors' cables at the GPU end — are not needed and that plan is retired.
+`dp-link-watch.service` is left running; it is cheap, and it is now the thing
+that would catch a recurrence early.
+
 ## 2026-09-10 — Voice music control, and bringing Home Assistant under management
 
 Voice requests to play music were "constantly misunderstood". Four things were
