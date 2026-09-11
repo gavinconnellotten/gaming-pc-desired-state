@@ -3,6 +3,81 @@
 Dated log of what's been done to `gaming-pc`, and whether it's been codified
 into this repo yet.
 
+## 2026-09-12 — The Shield: monitored, deliberately not managed
+
+Researched remote management of the NVIDIA Shield now that gaming-pc mounts a
+share from it. Conclusion: **monitor it, do not manage it.**
+
+### Why there is no roles/shield, and should not be
+
+A Shield has no package manager, no config files to version, and no
+declarative surface. Everything ADB offers is **imperative** — "install this",
+"reboot" — which is a runbook, not desired state. Writing a role for it would
+be calling a runbook desired-state config.
+
+The wider ecosystem agrees: the tools people use are MDM platforms built for
+estates of hundreds of devices, or manual ADB app managers. Nobody does
+declarative Android TV config, because there is no sensible way to.
+
+What is even theoretically version-controllable is thin: its SMB share is a UI
+toggle, Plex settings are capturable but not enforceable, and an "these apps
+should exist" check via ADB is possible but marginal.
+
+### What the Shield actually exposes, measured
+
+```
+8009  Cast                     open
+6466  Android TV Remote v2     open
+32400 Plex                     open
+445   SMB                      open (enabled 2026-09-12)
+5555  ADB network debugging    CLOSED
+22    SSH                      closed
+```
+
+ADB being off is the right default. It is a debugging interface with no
+authentication beyond initial pairing, and enabling it speculatively buys
+nothing — so `check-shield.sh` flags it if it is ever found open.
+
+### The Android TV Remote integration was never set up
+
+Two `androidtv_remote` config entries exist in Home Assistant, for the Shield
+and a Philips TV, and neither has ever produced a single entity. The cause was
+not a broken pairing, which is what it looked like:
+
+```
+SHIELD: source=ignore
+65PUT7908/79: source=ignore
+```
+
+**`source=ignore`** — these are dismissed discovery notifications, not
+configured integrations. Both devices were auto-discovered and the "configure?"
+card was clicked away, which Home Assistant records so it stops asking. Stale
+certificates from 8 May exist in `.storage` and are harmless.
+
+Worth knowing for next time: a config entry with no entities and no log errors
+is more likely `source=ignore` than a failure. Adding the integration properly
+requires un-ignoring it first, since Home Assistant will not re-offer an
+ignored device.
+
+### New: scripts/check-shield.sh
+
+Third in the set alongside `check-gaming-pc.sh` and `check-homeassistant.sh` —
+one script per machine the household depends on. Read-only, no credentials,
+every check a TCP probe or an unauthenticated endpoint.
+
+It reports reachability, SMB, Plex, Cast and Remote, flags ADB if open, and
+checks the mount from this machine's side. It treats an **idle automount as
+normal**, which is not a given: reporting an idle `x-systemd.automount` share
+as broken is a mistake this repo has already made once.
+
+Added to the weekly Saturday report, and to `.claude/settings.json` so the
+scheduled routine does not stall on a permission prompt.
+
+The value is narrow but real: the Shield is an Android TV box that reboots for
+updates and gets switched off casually. The mount is automount, so an absent
+Shield is harmless — but "harmless" and "noticed" are different things, and
+without this you discover it from a mysteriously empty directory.
+
 ## 2026-09-12 — A fourth SMB mount, on a second server
 
 `//192.168.68.102/internal/Download` → `/mnt/shield-downloads`, the NVIDIA

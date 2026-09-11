@@ -25,7 +25,9 @@
       "Bash(flatpak list*)",
       "Bash(findmnt *)",
       "Bash(rpm -q *)",
-      "Bash(ansible-playbook -i inventory.ini site.yml --syntax-check*)"
+      "Bash(ansible-playbook -i inventory.ini site.yml --syntax-check*)",
+      "Bash(./scripts/check-shield.sh)",
+      "Bash(./scripts/check-shield.sh:*)"
     ]
   }
 }
