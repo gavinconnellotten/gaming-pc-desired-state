@@ -4,8 +4,9 @@
   media_player.home_assistant_voice_0a6597_media_player esphome            enabled
   media_player.home_assistant_voice_0a6597       music_assistant    device
   media_player.music_player_daemon               mpd                enabled
-  media_player.shield_2                          music_assistant    device
-  media_player.shield                            cast               enabled
+  media_player.shield_cast                       cast               enabled
+  media_player.shield_music                      music_assistant    device
+  media_player.shield_remote                     androidtv_remote   enabled
   media_player.tap                               music_assistant    enabled
   media_player.vx6hgv2jh0_2                      music_assistant    enabled
   media_player.vx6hgv2jh0                        music_assistant    device

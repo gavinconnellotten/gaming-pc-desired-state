@@ -91,8 +91,30 @@ knowing about:
 | `media_player.shield_3` | Android TV Remote | power, volume, apps |
 
 Nothing is wrong, but an automation written against the wrong one will fail
-in a way that looks like the Shield is broken. Worth renaming in the UI if
-these get used.
+in a way that looks like the Shield is broken.
+
+**Renamed the same day**, since nothing referenced them yet — checked against
+`automations.yaml`, `scripts.yaml`, `packages/` and this repo before touching
+anything:
+
+| Was | Now | Integration |
+|---|---|---|
+| `media_player.shield` | `media_player.shield_cast` | Cast |
+| `media_player.shield_2` | `media_player.shield_music` | Music Assistant |
+| `media_player.shield_3` | `media_player.shield_remote` | Android TV Remote |
+| `remote.shield` | unchanged, named "SHIELD Remote" | Android TV Remote |
+
+**New `scripts/ha-rename-entity.py`.** Entity renames are **websocket-only** —
+Home Assistant's REST API can read states, delete config entries and call
+services, but the entity registry is not exposed over it, so neither `curl` nor
+Ansible can do this. The script dry-runs by default, refuses to rename onto an
+existing entity_id, and verifies against the registry rather than trusting the
+reply.
+
+That verification immediately caught a bug in itself: renaming only the
+*friendly name* leaves `old == new`, and asserting "the old entity_id is gone"
+then fails on a change that worked. Fixed to handle that case, and it now also
+checks the name actually landed.
 
 ### New: scripts/check-shield.sh
 
