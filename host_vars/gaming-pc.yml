@@ -45,3 +45,33 @@ smb_mounts:
     share: MEDIA/TV SHOWS
     mountpoint: /mnt/plex-tv
     credentials: /etc/samba/credentials
+
+  # ---------------------------------------------------------------------------
+  # The NVIDIA Shield in the lounge, added 2026-09-12. A SECOND server, which
+  # is why several things here differ from the three above.
+  #
+  # Addressed by IP, not hostname. The Shield's SMB advertises itself as
+  # "localhost server (Samba, Ubuntu)", so its own name is not to be trusted.
+  # The tradeoff is real: a DHCP change breaks this mount, so the Shield wants
+  # a static lease on the router.
+  #
+  # Its own credential file. Same username as the Home Assistant shares, but a
+  # different machine and a different password — one shared file would break
+  # all four mounts the moment either password changed.
+  #
+  # NOTE: /etc/samba/credentials-shield sits ALONGSIDE the file
+  # /etc/samba/credentials rather than inside it. setup-smb-credentials.sh
+  # defaults to treating that path as a directory, which cannot work on this
+  # machine because it is already a file. The script catches it and asks for
+  # another path; see the CHANGELOG.
+  #
+  # This is an Android TV box: it reboots for updates and gets switched off
+  # casually, far less predictably than the Home Assistant machine. The
+  # x-systemd.automount options the role applies are what make that safe — an
+  # absent server gives an empty mountpoint rather than a hung boot. Do not put
+  # anything this desktop depends on behind it.
+  - name: shield-downloads
+    server: 192.168.68.102
+    share: internal/Download
+    mountpoint: /mnt/shield-downloads
+    credentials: /etc/samba/credentials-shield

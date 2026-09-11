@@ -3,6 +3,54 @@
 Dated log of what's been done to `gaming-pc`, and whether it's been codified
 into this repo yet.
 
+## 2026-09-12 — A fourth SMB mount, on a second server
+
+`//192.168.68.102/internal/Download` → `/mnt/shield-downloads`, the NVIDIA
+Shield in the lounge, which had SMB sharing switched on this morning. First
+time this repo has mounted from anything other than the Home Assistant machine.
+
+Verified after mounting rather than assumed: CIFS options applied, contents
+readable, and files owned `gavin:gavin` rather than root — CIFS carries no Unix
+ownership, so the client decides, and getting it wrong gives a share that
+mounts but cannot be used.
+
+Four things differ from the three Home Assistant mounts, each for a reason:
+
+- **Addressed by IP.** The Shield's SMB advertises itself as "localhost server
+  (Samba, Ubuntu)", so its own hostname is not trustworthy. The tradeoff is
+  real — a DHCP change breaks the mount, so the Shield wants a static lease.
+- **Its own credential file.** Same username as the Home Assistant shares, but
+  a different machine and password. One shared file would break all four mounts
+  the moment either password changed.
+- **A subdirectory, not the share root.** The only mountable share is
+  `internal`; `Download` is a directory inside it. `mount.cifs` handles that
+  natively, as the existing `SSD/MOVIES` entries already show.
+- **It is an Android TV box.** It reboots for updates and gets switched off
+  casually. The `x-systemd.automount` options the role already applies are what
+  make that safe: an absent Shield gives an empty mountpoint, not a hung boot.
+  Nothing this desktop depends on should live behind it.
+
+### Two rough edges found doing it
+
+**`setup-smb-credentials.sh` defaults to a path that cannot work here.** It
+offers `/etc/samba/credentials/<slug>`, treating that path as a directory —
+but on this machine `/etc/samba/credentials` is already a *file*, holding the
+Home Assistant login. The script caught the conflict and asked for another
+path, which is the right behaviour, but the default has never been exercised
+on a machine that already had the single-file layout. `credentials-shield` now
+sits alongside it. Worth settling on one convention.
+
+**The script prints a complete `smb_mounts:` block, not an entry to append.**
+Pasted verbatim it would have replaced the three Home Assistant mounts. Fine
+when it was written and there was only ever one server; a trap now. The new
+entry was appended by hand instead.
+
+Also noted while looking: the Home Assistant system disk has gone from 49% to
+**75%** since 2026-09-05. `/media/TV SHOWS` grew 67 GB → 115.6 GB, and
+`/backup` holds two ~9 GB HA Automatic backups where the 29 Aug one is now
+superseded by `2026.9.0`. 55 GB free. Our own pruning will not touch those —
+it only removes backups matching its own name prefix, by design.
+
 ## 2026-09-12 — Give up on removing Brave
 
 `roles/desktop_apps` has been trying to remove `brave-browser` since it was
