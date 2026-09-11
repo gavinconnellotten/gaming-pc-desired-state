@@ -270,10 +270,31 @@ Ansible's idempotency. The role manages the gaming-pc side and reaches across
 over SSH. Don't add an inventory group for it: a group that can only run `raw`
 misrepresents what this repo controls.
 
-**No API token is needed.** Inside the SSH session the Supervisor API is at
-`http://supervisor` with `$SUPERVISOR_TOKEN` already exported, so the SSH key
-is the only credential. A long-lived token exists at
-`/etc/homeassistant/api-token` from the original setup; nothing reads it.
+**The SSH key covers add-on and Supervisor work.** Inside the SSH session the
+Supervisor API is at `http://supervisor` with `$SUPERVISOR_TOKEN` already
+exported, so `roles/homeassistant` needs no separate credential for backups,
+add-on settings or mount repair.
+
+**A long-lived HA token exists for the Core API**, at
+`~/.config/homeassistant/api-token` — user-owned `0600`, added 2026-09-12.
+
+That is a deliberate departure from "credentials live in root-owned `0600`
+files", and the distinction matters. The root-owned rule exists because
+`mount.cifs` runs as root and the SMB credentials must not be readable by
+anything else. This token's consumers are all user-level — the health scripts,
+the backup timer, ad-hoc queries — so a root-owned copy is not more secure, it
+is merely unusable. The original at `/etc/homeassistant/api-token` sat unread
+for a week for exactly that reason.
+
+What it unlocks, and why it is worth having: reading entity states directly
+(the camera analysis previously copied a 223 MB database over the network to
+get at them), reloading YAML without restarting Home Assistant, deleting
+config entries, and calling services — which means an automation can be
+*tested* rather than handed over untested.
+
+It grants full control of the home automation system. Treat it like the SMB
+passwords: never printed, never committed, never passed as a command-line
+argument.
 
 **The mounts look circular and are not wrong.** Home Assistant mounts CIFS
 shares from its own Samba add-on, because HAOS's Supervisor can only mount CIFS
