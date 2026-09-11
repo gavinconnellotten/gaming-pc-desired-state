@@ -88,11 +88,9 @@
 # Browser cleanup and default
 # ---------------------------------------------------------------------------
 
-# Brave ships with the Nobara image, so this is a deliberate departure from
-# "manage the delta, not the distribution". Removing it also removes
-# nobara-browser-policy, which requires it and ships only Brave's policy file;
-# nothing else depends on that, so there is no cascade. The Brave *repo* is
-# left alone — nobara-repos owns it.
+# Skipped while desktop_apps_remove is empty, which it is. Brave removal was
+# abandoned on 2026-09-12 after failing on every run — see defaults/main.yml
+# for why, and why the mechanism is kept rather than deleted.
 - name: Remove unwanted browsers
   ansible.builtin.dnf:
     name: "{{ desktop_apps_remove }}"

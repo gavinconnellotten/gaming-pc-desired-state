@@ -61,7 +61,7 @@ diagnostics gotcha below; this distinction is load-bearing.
 | Dotfiles / KDE settings | **Captured, deliberately not managed** — see below |
 | Gaming stack | **Post-install additions managed** — `roles/gaming`. Nobara's own packages deliberately unmanaged |
 | Power / idle behaviour | **Managed and verified** — `roles/power_management`. Includes auto-login. Depends on a BIOS setting the role can't apply |
-| Desktop apps | **Managed** — `roles/desktop_apps`. qBittorrent, Proton VPN, Proton Mail, LibreWolf; removes Brave |
+| Desktop apps | **Managed** — `roles/desktop_apps`. qBittorrent, Proton VPN, Proton Mail, LibreWolf. Brave removal was tried and abandoned 2026-09-12 — it errored every run and blocked three later roles |
 | System tuning | **Managed** — `roles/system_tuning`. Core dump storage caps |
 | Home Assistant | **Managed from here** — `roles/homeassistant`. Weekly config backup pulled to this machine. HAOS is deliberately *not* an Ansible host |
 | Health reporting | `scripts/check-gaming-pc.sh`, `scripts/check-homeassistant.sh` — read-only, plus a weekly Claude routine |
@@ -168,6 +168,23 @@ and when the machine suspends. It also installs a udev rule arming USB wake.
 Current timings, four separated stages: **dim at 10, blank at 20, lock at 30,
 suspend at 60 minutes.** Revised 2026-08-21 from 9/10/10, which locked the
 session several times a day.
+
+It also opens the **Saturday maintenance window** (08:10–10:30): an RTC alarm
+to wake the machine, and a logind `sleep` inhibitor so it cannot suspend out
+from under the update, the backup or the report. The inhibitor asks for
+`sleep` only and deliberately not `idle`, so the screen still locks on the
+normal timing.
+
+**RTC wake is verified** (2026-09-12) and — unlike `Resume By USB Device` —
+needs no BIOS change. Re-test with `scripts/test-rtc-wake.sh`. Two traps cost
+real time getting there: a successful wake can leave the **monitor dark**, so
+it looks like the machine never came back; and journal timestamps **collapse
+across a suspend**, so `journalctl` cannot tell you whether the resume came
+before or after a keypress. The script keeps its own heartbeat for that reason.
+
+The machine resumes to the **lock screen**, which is intended. The session
+survives with `Linger=yes`, so the update (system service), the backup (user
+timer) and the report (Claude Desktop in the live session) all still run.
 
 Blanking and locking are deliberately **not** coincident. Blanking is what
 saves the power; locking is the security boundary; there is no reason they must
@@ -321,7 +338,17 @@ not "automate or don't" — it is **use the tool that understands the system**.
   by hand, on the owner's judgement.
 
 Saturday sequence, in this order so the report describes the machine *after*
-updating: **08:00** update, **09:30** HA backup, **10:09** report.
+updating: **08:10** wake, **08:20** update, **09:30** HA backup, **~09:49**
+report.
+
+All of it now sits inside one maintenance window opened by
+`roles/power_management` — an RTC alarm wakes the machine at 08:10 and a logind
+inhibitor holds sleep off until 10:30. Before that, none of these times meant
+anything: the machine was asleep at 08:00 every week and the update only ran as
+a `Persistent` catch-up whenever somebody switched the PC on. **Waking it
+early is not sufficient on its own** — with no keyboard input PowerDevil
+suspends it again an hour after the wake, which would have killed the 09:30
+backup. See the power section below.
 
 **The reason any of this matters, concretely:** on 2026-09-05 a kernel was
 installed with no NVIDIA module built for it, because `40-dkms.install` fires

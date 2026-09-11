@@ -200,3 +200,127 @@
     path: "{{ power_autologin_dropin }}"
     state: absent
   when: not (power_autologin | bool)
+
+# ---------------------------------------------------------------------------
+# The Saturday maintenance window
+#
+# Two problems, one window. The machine is asleep when the Saturday timers
+# elapse, and waking it does not keep it awake — see defaults/main.yml for the
+# evidence behind both.
+#
+# This is a SYSTEM timer deliberately. WakeSystem=true needs CAP_WAKE_ALARM to
+# arm the RTC, which a --user timer does not have; ha-backup.timer reports
+# WakeSystem=no for exactly that reason and cannot be moved to the system
+# manager, because it authenticates to Home Assistant with the desktop user's
+# SSH key and root's is not authorised there.
+# ---------------------------------------------------------------------------
+- name: Install the maintenance window service unit
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/maintenance-window.service
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by roles/power_management.
+      #
+      # Holds a logind sleep inhibitor for the length of the Saturday
+      # maintenance window, so the machine cannot suspend out from under the
+      # update, the Home Assistant backup or the weekly report.
+      #
+      # --what=sleep only. Deliberately NOT sleep:idle — inhibiting idle would
+      # also stop the screen locking, and the lock is the security boundary.
+      # The screen still dims, blanks and locks normally inside the window.
+      [Unit]
+      Description=Hold off sleep for the Saturday maintenance window
+      Documentation=file://{{ playbook_dir }}/roles/power_management/README.md
+
+      [Service]
+      Type=simple
+      ExecStart=/usr/bin/systemd-inhibit --what=sleep --who=maintenance-window --why="Saturday maintenance window" --mode=block /usr/bin/sleep {{ power_maintenance_window_sec }}
+      # An inhibitor that hangs must not hold sleep off forever. Comfortably
+      # longer than the window itself, short enough to self-clear the same day.
+      RuntimeMaxSec={{ power_maintenance_window_sec | int + 600 }}
+  when: power_maintenance_window | bool
+  register: power_window_service
+
+- name: Install the maintenance window timer unit
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/maintenance-window.timer
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by roles/power_management.
+      #
+      # WakeSystem=true arms an RTC alarm so the machine resumes from suspend
+      # to run this. It fires ahead of the update so everything downstream
+      # runs on schedule rather than as a Persistent catch-up.
+      #
+      # Persistent=false, unlike the timers it protects. If this window is
+      # missed entirely there is no point running a two-hour inhibitor at some
+      # unrelated hour — and the update and backup each carry their own
+      # Persistent=true, so a genuinely missed Saturday still catches up.
+      [Unit]
+      Description=Wake for the Saturday maintenance window
+
+      [Timer]
+      OnCalendar={{ power_maintenance_window_start }}
+      WakeSystem=true
+      Persistent=false
+
+      [Install]
+      WantedBy=timers.target
+  when: power_maintenance_window | bool
+  register: power_window_timer
+
+- name: Reload systemd after maintenance window unit changes
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when:
+    - power_maintenance_window | bool
+    - power_window_service.changed or power_window_timer.changed
+
+- name: Enable and start the maintenance window timer
+  ansible.builtin.systemd_service:
+    name: maintenance-window.timer
+    enabled: true
+    state: started
+  when: power_maintenance_window | bool
+
+# RTC wake is a claim until the hardware honours it. This machine has form:
+# the USB wake chain read `enabled` at all five levels and was completely
+# inert until a BIOS option was changed. Report what the kernel exposes and
+# say plainly that it is not proof.
+- name: Check whether the RTC exposes a wake alarm
+  ansible.builtin.stat:
+    path: /sys/class/rtc/rtc0/wakealarm
+  register: power_rtc_wakealarm
+  when: power_maintenance_window | bool
+
+- name: Read the armed RTC alarm
+  ansible.builtin.command: cat /sys/class/rtc/rtc0/wakealarm
+  register: power_rtc_alarm_value
+  changed_when: false
+  failed_when: false
+  when:
+    - power_maintenance_window | bool
+    - power_rtc_wakealarm.stat.exists | default(false)
+
+- name: Report the maintenance window
+  ansible.builtin.debug:
+    msg:
+      - "window:  {{ power_maintenance_window_start }}"
+      - "holds sleep off for: {{ (power_maintenance_window_sec | int) // 60 }} min"
+      - "RTC wakealarm: {{ 'present' if power_rtc_wakealarm.stat.exists else 'MISSING - RTC wake cannot work' }}"
+      - "alarm armed: {{ power_rtc_alarm_value.stdout | default('') | trim | default('no', true) }}"
+      - "Presence is not proof. Verify with a real suspend - see the README."
+  when: power_maintenance_window | bool
+
+- name: Remove the maintenance window units when disabled
+  ansible.builtin.file:
+    path: "/etc/systemd/system/maintenance-window.{{ item }}"
+    state: absent
+  loop:
+    - timer
+    - service
+  when: not (power_maintenance_window | bool)

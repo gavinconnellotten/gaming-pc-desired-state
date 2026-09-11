@@ -63,31 +63,49 @@ Add to `desktop_apps_dnf` or `desktop_apps_flatpaks` in `defaults/main.yml`.
 Prefer the RPM when one exists and the app needs system integration; prefer the
 flatpak when upstream ships no RPM, as with Proton Mail.
 
-## Browsers: LibreWolf in, Brave out
+## Browsers: LibreWolf in, Brave left alone
 
 | | |
 |---|---|
 | LibreWolf | Installed from its own repo, set as default browser |
-| Brave | **Removed** |
+| Brave | **Still installed, deliberately unmanaged** |
 
-### Brave is Nobara's, and removing it is a deliberate exception
+### Brave removal was tried and abandoned
 
-Brave arrived with the image — `dnf` transaction 1 lists
-`brave-browser-0:1.89.143-1.x86_64`. So taking it out is a departure from
-*manage the delta, not the distribution*. That rule exists to stop this repo
-fighting `nobara-sync` over package **versions**; deciding you don't want an
-application the distro chose to include is a different thing, and it is
-recorded here rather than done quietly.
+This role used to remove `brave-browser`. **It never once worked, and it
+errored on every playbook run.** Given up on 2026-09-12.
 
-Two details that make it safe:
+The evidence, because "it didn't work" is not much use on its own:
 
-- **`nobara-browser-policy` goes with it.** It requires `brave-browser` and
-  ships exactly one file, `/etc/brave/policies/managed/brave_nobara-policies.json`.
-  Nothing requires *it*, so there is no cascade.
-- **`brave-keyring` and the Brave repo are left alone.**
-  `/etc/yum.repos.d/brave-browser.repo` is owned by `nobara-repos`, so removing
-  Brave's repo plumbing would fight a Nobara-managed package for no benefit.
-  The browser being gone is the point.
+- `dnf history` shows `brave-browser` being **upgraded** — transactions 28 and
+  35 — and never removed. It is currently `1.95.101`, against the
+  `brave-browser-0:1.89.143-1.x86_64` that `dnf` transaction 1 shipped. So it
+  has been quietly updating the whole time the repo claimed it was gone.
+- It is **not** in `/etc/dnf/protected.d/`, so protection was not the blocker.
+  `nobara.conf` protects `nobara-welcome`, `nobara-nvidia-wizard`,
+  `nobara-login`, `nobara-release` and `nobara-repos` — not Brave.
+- `nobara-browser-policy` **requires** `brave-browser`, so any removal has to
+  take that with it.
+
+The deeper reason to stop rather than fix it: Brave arrived with the image, and
+*manage the delta, not the distribution* exists precisely to stop this repo
+fighting Nobara over the package set it maintains. A step that errors every
+single run is worse than no step at all — it stops the play, and because
+`desktop_apps` runs before `system_tuning`, `os_updates` and `homeassistant`,
+a full-playbook run silently never reached those three.
+
+**The consequence that matters:** Brave staying installed makes the
+default-browser setting below load-bearing rather than cosmetic. Brave being
+present is the whole reason Proton Mail's links went somewhere unwanted.
+
+If it ever genuinely has to go, do it by hand and read the actual error:
+
+```bash
+sudo dnf remove brave-browser nobara-browser-policy
+```
+
+`brave-keyring` and `/etc/yum.repos.d/brave-browser.repo` should still be left
+alone either way — the repo file is owned by `nobara-repos`.
 
 ### The LibreWolf repo has to be declared
 

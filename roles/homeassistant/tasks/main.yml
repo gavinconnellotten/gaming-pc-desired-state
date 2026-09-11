@@ -125,7 +125,10 @@
       Environment=DEST={{ ha_backup_dir }}
       Environment=KEEP_LOCAL={{ ha_backup_keep_local }}
       Environment=KEEP_REMOTE={{ ha_backup_keep_remote }}
-      Environment=NAME_PREFIX={{ ha_backup_name_prefix }}
+      # Quoted because the prefix contains spaces. Unquoted, systemd splits on
+      # whitespace and silently discards everything after the first word, so
+      # NAME_PREFIX becomes "gaming-pc" and only the journal says otherwise.
+      Environment="NAME_PREFIX={{ ha_backup_name_prefix }}"
       ExecStart=%h/.local/bin/ha-backup.sh
       # A backup that hangs must not hang forever.
       TimeoutStartSec=1800

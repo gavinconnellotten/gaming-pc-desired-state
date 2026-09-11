@@ -35,6 +35,40 @@ power_button_action: 1
 # this depends on and cannot supply.
 power_manage_usb_wake: true
 
+# The Saturday maintenance window.
+#
+# Three things are scheduled on a Saturday morning — the system update, the
+# Home Assistant backup, and the weekly report. All three were being missed,
+# for two separate reasons:
+#
+#   1. The machine is asleep at the scheduled time, so nothing fires until
+#      somebody wakes it. On 2026-09-12 the update timer triggered at
+#      08:28:13, the same SECOND the machine resumed from S3 — its 08:00
+#      window had passed while it slept and Persistent=true caught it up.
+#
+#   2. Waking it is not enough. With nobody at the keyboard there is no
+#      input, so PowerDevil's idle countdown runs from the moment of wake and
+#      suspends the machine again an hour later — before the 09:30 backup.
+#      The backup succeeded on 2026-09-12 only because the owner happened to
+#      be sitting at the machine.
+#
+# So the window does two things: an RTC alarm wakes the machine, and a logind
+# inhibitor holds sleep off until the last scheduled event has run.
+#
+# WakeSystem=true only wakes from SUSPEND, never from a powered-off machine.
+# That suits this one — it sleeps rather than shutting down; the current boot
+# has been up since 2026-09-11 and simply slept overnight. If it is ever
+# genuinely switched off, the RTC alarm cannot help and the Persistent=true on
+# each timer remains the fallback.
+power_maintenance_window: true
+power_maintenance_window_start: "Sat *-*-* 08:10:00"
+
+# 08:10 + 2h20m = 10:30, which clears the report. Sleep is held off for this
+# long; the screen still dims, blanks and LOCKS on the normal timings, because
+# the inhibitor asks for `sleep` only and not `idle`. Locking is the security
+# boundary and there is no reason to give it up to keep the machine awake.
+power_maintenance_window_sec: 8400
+
 # Every Plasma setting this role owns, declared explicitly. group_args is
 # spelled out rather than generated, because kwriteconfig6 takes a repeated
 # --group flag and building that from a list is the kind of cleverness that

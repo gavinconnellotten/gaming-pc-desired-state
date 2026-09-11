@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./scripts/check-gaming-pc.sh*)",
+      "Bash(./scripts/check-homeassistant.sh*)",
+      "Bash(./scripts/check-power-inhibitors.sh*)",
+      "Bash(./scripts/capture-state.sh*)",
+      "Bash(./scripts/capture-homeassistant.sh*)",
+      "Bash(journalctl -u *)",
+      "Bash(journalctl --user -u *)",
+      "Bash(journalctl --list-boots*)",
+      "Bash(journalctl -b *)",
+      "Bash(systemctl status *)",
+      "Bash(systemctl show *)",
+      "Bash(systemctl is-active *)",
+      "Bash(systemctl list-timers *)",
+      "Bash(systemctl list-unit-files *)",
+      "Bash(systemctl --failed*)",
+      "Bash(systemctl --user status *)",
+      "Bash(systemctl --user show *)",
+      "Bash(systemctl --user is-active *)",
+      "Bash(systemctl --user list-timers *)",
+      "Bash(dkms status*)",
+      "Bash(flatpak remote-ls *)",
+      "Bash(flatpak list*)",
+      "Bash(findmnt *)",
+      "Bash(rpm -q *)",
+      "Bash(ansible-playbook -i inventory.ini site.yml --syntax-check*)"
+    ]
+  }
+}

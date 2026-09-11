@@ -39,20 +39,31 @@ desktop_apps_install_rclone: false
 desktop_apps_manage_librewolf_repo: true
 desktop_apps_librewolf_repo_file: /etc/yum.repos.d/librewolf.repo
 
-# Packages to remove. Brave ships with the Nobara image (dnf transaction 1),
-# so this is a deliberate departure from "manage the delta, not the
-# distribution" — removing something the distro chose to include is a decision,
-# not drift, and it is recorded as such.
+# Packages to remove. EMPTY, and deliberately so — the task below is skipped
+# while this list is empty.
 #
-# nobara-browser-policy will be removed alongside it: it requires brave-browser
-# and ships exactly one file, /etc/brave/policies/managed/brave_nobara-policies.json.
-# Nothing else requires it, so there is no cascade.
+# This used to contain brave-browser. That was abandoned on 2026-09-12 after it
+# failed on every run. The decision is recorded rather than the attempt deleted,
+# because the reasoning is the useful part:
 #
-# brave-keyring is deliberately NOT removed. /etc/yum.repos.d/brave-browser.repo
-# is owned by nobara-repos, so tearing out Brave's repo plumbing would fight a
-# Nobara-managed package for no benefit — the browser being gone is enough.
-desktop_apps_remove:
-  - brave-browser
+#   - Brave shipped with the Nobara image — dnf transaction 1 lists
+#     brave-browser-0:1.89.143-1.x86_64 — so removing it was always a departure
+#     from "manage the delta, not the distribution".
+#   - It never worked. dnf history shows brave-browser being UPGRADED
+#     (transactions 28 and 35, now at 1.95.101) and never once removed. The
+#     playbook errored on this step every run.
+#   - It is NOT dnf-protected, so that was not the blocker. What is true:
+#     nobara-browser-policy requires brave-browser, and Nobara's own updater
+#     treats the image package set as something to maintain. Fighting that is
+#     exactly what this repo says not to do.
+#
+# So Brave stays installed and unmanaged, which makes the default-browser
+# setting below load-bearing rather than cosmetic: Brave being present is why
+# Proton Mail's links went somewhere unwanted in the first place.
+#
+# If Brave ever genuinely needs to go, do it by hand and read the real error:
+#   sudo dnf remove brave-browser nobara-browser-policy
+desktop_apps_remove: []
 
 # Default browser, applied with xdg-settings after the packages are in place —
 # setting a default for a desktop file that doesn't exist yet silently does

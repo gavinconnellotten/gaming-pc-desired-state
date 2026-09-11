@@ -7,15 +7,22 @@ suspends, and — the hard part — making sure a keypress can wake it again.
 
 | Behaviour | Setting |
 |---|---|
-| Screens dim | 9 minutes |
-| Screens blank **and** session locks | 10 minutes |
+| Screens dim | 10 minutes |
+| Screens blank | 20 minutes |
+| Session locks | 30 minutes |
 | Blank again while locked | 2 minutes |
 | Suspend to RAM (S3) | 1 hour |
 | Power button | Sleep |
 | Password required after resume | Yes |
 
+Blanking and locking are deliberately not coincident — blanking is what saves
+the power, locking is the security boundary, and the ten minutes between them
+is a grace period where a mouse nudge costs no password.
+
 Plus a udev rule arming the USB wake chain, without which the machine sleeps
-after an hour and can only be woken by the power button.
+after an hour and can only be woken by the power button; auto-login, because
+the login greeter has no power management at all; and the Saturday maintenance
+window described below.
 
 ## The bit that is genuinely hard: USB wake
 
@@ -71,6 +78,105 @@ alongside recreating the SMB credentials.
 was suspected because the keyboard LEDs go dark in S3 — which turned out to be
 a consequence of `Resume By USB Device` being off, not of ErP. Recorded so
 nobody re-tests it.
+
+## The Saturday maintenance window
+
+Three jobs run on a Saturday morning — the system update (08:20), the Home
+Assistant backup (09:30) and the weekly report. All three were unreliable, for
+two separate reasons that look like one.
+
+**The machine is asleep when they elapse.** On 2026-09-12 the update timer
+triggered at `08:28:13` — the same second the machine resumed from S3. Its
+08:00 window had passed while the machine slept, and `Persistent=true` caught
+it up on wake. It worked, but it meant the real start time was "whenever
+somebody switched the PC on", and a genuinely missed week looked identical to
+a healthy one in the journal.
+
+**Waking it is not enough, and this is the part that catches people.** With
+nobody at the keyboard there is no input, so PowerDevil's idle countdown runs
+from the moment of wake and suspends the machine again an hour later — before
+the 09:30 backup. The backup succeeded on 2026-09-12 only because the owner
+happened to be sitting at the machine. An early wake *on its own* would have
+made the backup worse, not better.
+
+So the window is two mechanisms:
+
+| Piece | Unit | Job |
+|---|---|---|
+| RTC alarm | `maintenance-window.timer` | `WakeSystem=true` resumes the machine at 08:10 |
+| Sleep inhibitor | `maintenance-window.service` | Holds `--what=sleep` until 10:30 |
+
+### Three decisions worth not re-litigating
+
+**It is a system timer, not a user timer.** `WakeSystem=true` needs
+`CAP_WAKE_ALARM` to arm the RTC, which a `--user` timer does not have —
+`systemctl --user show ha-backup.timer -p WakeSystem` reports `no` for exactly
+that reason. And `ha-backup.timer` *cannot* be moved to the system manager to
+fix this: it authenticates to Home Assistant with the desktop user's SSH key,
+and root's is not authorised there. So the backup is covered by keeping the
+machine awake, not by giving it its own alarm.
+
+**The inhibitor asks for `sleep`, not `sleep:idle`.** Inhibiting idle would
+also stop the screen locking, so the machine would sit unlocked and lit for
+two hours every Saturday. Sleep is the only thing that needs blocking; the
+screen still dims, blanks and locks on the normal timings inside the window.
+
+**The timer is `Persistent=false`**, unlike the two it protects. If the window
+is missed outright there is nothing useful about running a two-hour inhibitor
+at some unrelated hour, and the update and backup each keep their own
+`Persistent=true` as the real backstop.
+
+### RTC wake — VERIFIED 2026-09-12, and it needs no BIOS change
+
+Unlike `Resume By USB Device`, this one works out of the box. Confirmed with
+`scripts/test-rtc-wake.sh arm 300`, untouched throughout: alarm armed
+10:20:57, machine back at 10:20:59, asleep 292s against a 300s alarm.
+
+Re-test with:
+
+```bash
+./scripts/test-rtc-wake.sh arm 300   # then touch NOTHING for ~7 minutes
+./scripts/test-rtc-wake.sh report
+```
+
+**Two things made the first attempt look like a failure.** Both are in the
+script's header comment, and neither is obvious:
+
+- **A black screen is not a sleeping machine.** The first test resumed
+  correctly and the monitor simply never lit, so it was read as "it did not
+  come back up" and woken with a keypress. Judge by the script's heartbeat
+  log, never by the screen.
+- **The journal cannot time a resume.** Wall-clock timestamps collapse across
+  a suspend — `Preparing to enter system sleep state S3` and `Waking up from
+  system sleep` both carry the post-resume second — so `journalctl` cannot
+  tell you whether the resume preceded a keypress. That is why the script
+  keeps its own userspace heartbeat.
+
+If a clean run ever does show it staying asleep, suspect firmware: MSI →
+Settings → Advanced → Wake Up Event Setup → **Resume By RTC Alarm**. The
+window degrades gracefully in that case — nothing fires until the machine is
+woken by hand, with `Persistent=true` catching the update up.
+
+### It resumes to the lock screen, and that is fine
+
+`LockOnResume=true` means the machine wakes to a password prompt. The session
+underneath is untouched — `State=active`, `Linger=yes` — so every Saturday job
+still runs: the update is a system service, `ha-backup.timer` is a user timer
+with lingering, and the report runs in Claude Desktop inside the live session.
+A resumed machine that still demands a password is the wanted outcome, not a
+problem to solve.
+
+**One behaviour change to know about.** Inside the window a deliberate suspend
+request is refused, because the inhibitor is `--mode=block`. That is the point,
+but it is surprising if you have forgotten. To suspend anyway:
+
+```bash
+sudo systemctl stop maintenance-window.service
+```
+
+`scripts/check-power-inhibitors.sh` shows it under system-level inhibitors
+while it is held — unlike KDE's application inhibitions, a logind one is
+visible to `systemd-inhibit --list`.
 
 ## Why kwriteconfig6 rather than copying files
 

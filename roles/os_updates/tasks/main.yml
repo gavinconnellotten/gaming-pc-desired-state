@@ -64,12 +64,16 @@
       # Managed by roles/os_updates.
       #
       # Saturday morning, ahead of the Home Assistant backup (09:30) and the
-      # weekly report (10:09), so the report describes the machine as it is
-      # after updating rather than before.
+      # weekly report, so the report describes the machine as it is after
+      # updating rather than before.
       #
-      # Persistent because this machine sleeps after an hour idle and is off
-      # overnight — a fixed Saturday time will be missed regularly, and a
-      # silently skipped week is the failure mode to avoid.
+      # Runs inside the maintenance window that roles/power_management opens
+      # at 08:10 — that window wakes the machine and holds sleep off, which is
+      # what lets this fire on schedule instead of as a catch-up.
+      #
+      # Persistent is still set: RTC wake cannot rouse a machine that is
+      # genuinely powered off, and a silently skipped week is the failure mode
+      # to avoid.
       [Unit]
       Description=Weekly Nobara system update
 

@@ -12,13 +12,21 @@
 os_updates_manage_timer: true
 
 # Saturday, early enough to finish before the Home Assistant backup at 09:30
-# and the weekly report at 10:09 — so the report describes the machine as it is
-# AFTER updating, which is the state a decision gets made about.
-os_updates_on_calendar: "Sat *-*-* 08:00:00"
+# and the weekly report — so the report describes the machine as it is AFTER
+# updating, which is the state a decision gets made about.
+#
+# 08:20 rather than 08:00, and the reason is worth keeping: the machine is
+# asleep at 08:00 every week, so this only ever ran as a Persistent catch-up
+# at whatever time somebody woke it (08:28:13 on 2026-09-12, the same second
+# the machine resumed). roles/power_management now wakes the machine at 08:10
+# for the maintenance window, so starting at 08:20 means this runs ON
+# SCHEDULE. That matters for more than tidiness — when a catch-up is the
+# normal case, a genuinely missed week looks identical to a healthy one.
+os_updates_on_calendar: "Sat *-*-* 08:20:00"
 
-# This machine sleeps after an hour idle and is switched off overnight, so a
-# Saturday-morning timer WILL be missed regularly. Run at the next opportunity
-# rather than skipping the week in silence.
+# Kept even with the wake in place. RTC wake cannot rouse a machine that is
+# genuinely powered off, and the maintenance window is deliberately not
+# Persistent, so this remains the backstop against a silently skipped week.
 os_updates_persistent: true
 
 # Include Flatpak updates (`--all`). Worth having on: the Flatpak NVIDIA GL

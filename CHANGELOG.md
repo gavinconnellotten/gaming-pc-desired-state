@@ -3,6 +3,260 @@
 Dated log of what's been done to `gaming-pc`, and whether it's been codified
 into this repo yet.
 
+## 2026-09-12 — Give up on removing Brave
+
+`roles/desktop_apps` has been trying to remove `brave-browser` since it was
+written. **It has never succeeded, and it errored on every run.** Removed from
+`desktop_apps_remove`, which is now empty; the task is skipped rather than
+deleted, so the decision stays legible.
+
+Why it was never going to work, measured rather than assumed:
+
+| Check | Result |
+|---|---|
+| `dnf history` for brave | **Upgraded** at txn 28 and 35, never removed |
+| Version now | `1.95.101`, against `1.89.143` on the ISO |
+| In `/etc/dnf/protected.d/`? | **No** — so protection was not the blocker |
+| `rpm -q --whatrequires brave-browser` | `nobara-browser-policy-2.0.0-5` |
+
+So Brave has been quietly updating itself the entire time this repo claimed it
+was removed. The honest reading is that it was never worth fighting: Brave came
+with the image, and *manage the delta, not the distribution* exists to stop
+exactly this.
+
+**The cost was much larger than a failed step**, and this is the part worth
+remembering. `site.yml` stops at the first failure, and `desktop_apps` runs
+*before* `system_tuning`, `os_updates` and `homeassistant` — so every
+full-playbook run silently stopped before reaching three roles. That is why the
+maintenance-window run on 2026-09-12 applied `power_management` and left
+`nobara-update.timer` on its old 08:00 schedule; it took a second run with
+`--tags os_updates` to land. A step that always errors is not a harmless
+no-op.
+
+Consequence to keep in view: Brave stays installed, which makes the
+`xdg-settings` default-browser step **load-bearing** rather than cosmetic.
+Brave being present is why Proton Mail's links went somewhere unwanted.
+Currently correct — `xdg-settings get default-web-browser` returns
+`librewolf.desktop`, with `librewolf-155.0.1-1` installed.
+
+If Brave ever genuinely has to go, by hand, reading the real error:
+`sudo dnf remove brave-browser nobara-browser-policy`.
+
+## 2026-09-12 — RTC wake VERIFIED; the first test was a black screen, not a failure
+
+First test was read as a failure — "I put the machine into suspend but it did
+not come back up, I had to trigger wake with a keyboard press." The evidence
+says the machine had already woken itself.
+
+| Observation | Value |
+|---|---|
+| Alarm armed for | 10:03:19 |
+| Suspend entered | 10:01:26 |
+| Resumed from S3 | **10:03:21** — two seconds after the alarm |
+| Asleep for | 115s, against a 120s alarm |
+| RTC `wakeup_active_count` | **1** |
+| RTC `wakeup_last_time_ms` | 9218s of awake time; the suspend began at ~9208s |
+| USB root hub `wakeup_count` | 0 on both |
+
+So the RTC wakeup source activated exactly once, timed to that resume, and the
+machine came back two seconds after its alarm. **The monitor never lit, which
+is what made it look asleep.**
+
+Not called proven, because one confound survives: a keypress at the two-minute
+mark the owner was waiting for would land within a couple of seconds of the
+alarm. `scripts/test-rtc-wake.sh` removes it.
+
+**Confirmed the same day by a clean run.** `scripts/test-rtc-wake.sh arm 300`,
+untouched throughout: alarm armed 10:20:57, first heartbeat after the gap
+10:20:59, asleep 292s against a 300s alarm. `wakeup_active_count` went to 2 —
+one activation per test, which retrospectively confirms the first test had
+woken the machine too. **RTC wake works on this machine and needs no BIOS
+change**, unlike `Resume By USB Device`.
+
+### It resumes to the LOCK screen, and the whole chain still runs
+
+The clean test resumed to what looked like a login screen. It is the lock
+screen from `LockOnResume=true`, and the session is intact: `loginctl` shows
+session 2 on `seat0`/`tty1` with `State=active`, `systemctl --user is-active
+default.target` returns `active`, and `Linger=yes`. The `plasmalogin-helper`
+process carries `--user gavin --autologin` — that is the auto-login session
+leader, not a greeter that has taken over.
+
+Which is the outcome wanted, because every Saturday job runs behind a locked
+screen: the update is a system service, `ha-backup.timer` is a user timer with
+lingering enabled, and the weekly report runs in Claude Desktop inside the
+still-live session. The machine wakes itself, does the work, and still demands
+a password if somebody walks up to it.
+
+### Two measurement traps this cost, both worth not repeating
+
+**The journal cannot time a resume.** Wall-clock timestamps collapse across a
+suspend — the entire suspend sequence is stamped with the post-resume second,
+so `Preparing to enter system sleep state S3` and `Waking up from system sleep`
+both read 10:03:21. The journal cannot tell you whether the resume preceded a
+keypress. `scripts/test-rtc-wake.sh` writes a userspace heartbeat every five
+seconds instead: it freezes through the suspend and resumes on wake, giving a
+wake time recorded after the clock is correct.
+
+**A black screen is not a sleeping machine.** This is the trap, and it is the
+same shape as the one on 2026-09-06 — a confident reading built from something
+adjacent. The test's own instructions now say to judge by the log and not the
+monitor.
+
+If a clean run shows it genuinely stayed asleep, the fix is almost certainly
+firmware: MSI -> Settings -> Advanced -> Wake Up Event Setup -> **Resume By RTC
+Alarm**, the direct analogue of `Resume By USB Device`, which sat unnoticed in
+the same menu for weeks. The script says so in its failure verdict.
+
+### Still open
+
+`roles/desktop_apps` errors every run on the Brave removal step. Not yet
+diagnosed — deferred deliberately while the wake is being settled. The
+consequence worth knowing meanwhile: the play stops at the first failure, so
+`desktop_apps` failing means `system_tuning`, `os_updates` and `homeassistant`
+never run in a full-playbook invocation. That is why the 2026-09-12 run applied
+`power_management` and left `nobara-update.timer` on its old 08:00 schedule;
+it took a second run with `--tags os_updates` to land.
+
+## 2026-09-12 — A maintenance window, because waking the machine is not enough
+
+The Saturday sequence — update, Home Assistant backup, weekly report — was
+only ever running because somebody happened to switch the PC on. Two separate
+causes, and the second is the one that matters.
+
+**The machine is asleep when the timers elapse.** `nobara-update.timer`
+triggered at `08:28:13` on 2026-09-12, the same second the machine resumed
+from S3. Its 08:00 window had passed in its sleep and `Persistent=true` caught
+it up. That worked, but it meant a genuinely missed week was
+indistinguishable from a healthy one in the journal.
+
+**Waking it early would have made things worse, not better.** With nobody at
+the keyboard there is no input, so PowerDevil's idle countdown runs from the
+moment of wake and would suspend the machine again an hour later — before the
+09:30 backup. The backup succeeded on 2026-09-12 **only because the owner was
+sitting at the machine at the time**. An RTC alarm on its own would have
+produced a machine that woke at 08:10, updated, and then went back to sleep at
+09:10 with the backup still pending.
+
+So `roles/power_management` now opens a window that does both:
+
+| Piece | Unit |
+|---|---|
+| RTC alarm, `WakeSystem=true`, Sat 08:10 | `maintenance-window.timer` |
+| logind `--what=sleep` inhibitor, 8400s (to 10:30) | `maintenance-window.service` |
+
+`roles/os_updates` moves from 08:00 to **08:20** so the update runs on schedule
+inside the window rather than as a weekly catch-up. `Persistent=true` stays on
+both the update and the backup — RTC wake cannot rouse a machine that is
+genuinely powered off.
+
+Three decisions recorded so they are not re-litigated:
+
+- **System timer, not user.** `WakeSystem=true` needs `CAP_WAKE_ALARM`;
+  `systemctl --user show ha-backup.timer -p WakeSystem` returns `no`. The
+  backup timer cannot be promoted to fix this — it authenticates to Home
+  Assistant with the desktop user's SSH key and root's is not authorised. So
+  the backup is covered by keeping the machine awake, not by its own alarm.
+- **`--what=sleep`, not `sleep:idle`.** Inhibiting idle would also stop the
+  screen locking, leaving the machine unlocked and lit for two hours every
+  Saturday. Sleep is the only thing that needs blocking.
+- **`Persistent=false` on the window**, unlike the timers it protects — a
+  two-hour inhibitor at some unrelated hour serves nothing.
+
+**RTC wake is UNVERIFIED and must not be assumed to work.** `wakealarm` exists
+and is writable and `/proc/driver/rtc` exposes an alarm, but RTC does not
+appear in `/proc/acpi/wakeup`. This machine has form: the USB wake chain read
+`enabled` at all five levels and was inert until a BIOS option was changed.
+`roles/power_management/README.md` has the two-minute suspend test. Until that
+test passes, the window is a hypothesis. It degrades gracefully — nothing
+fires until the machine is woken by hand, exactly as before.
+
+Not applied to the machine: the playbook needs `--ask-become-pass`. The
+rendered units pass `systemd-analyze verify` and both calendar specs were
+checked with `systemd-analyze calendar`.
+
+### Also: the report fired before the backup — retimed
+
+The weekly report ran at ~09:24, ahead of the backup's 09:30–09:35 window,
+which is why it reported a 6-day-old backup nine minutes before a fresh one
+landed.
+
+The cause was not the `10:09` this file used to claim. The task's cron was
+`15 9 * * 6` — 09:15 — plus 555s of dispatch jitter, landing at ~09:24.
+Retimed to `40 9 * * 6`, which with jitter fires **~09:49**: clear of the
+backup window, and inside the maintenance window that holds sleep off until
+10:30. The task's own prompt said the update runs at 08:00 and was corrected
+to 08:20.
+
+It is a Claude scheduled task held server-side, not a systemd timer, so it is
+not reproducible from this repo — if the machine is rebuilt, the schedule has
+to be recreated by hand.
+
+### Permission prompts on the weekly routine
+
+The routine needed interactive approval on 2026-09-12, which is part of why it
+ran late. Added `.claude/settings.json` with 25 read-only allow rules covering
+the health scripts, `journalctl` reads, read-only `systemctl` subcommands,
+`dkms status`, `flatpak` queries, `findmnt` and `rpm -q`.
+
+Scoped deliberately rather than broadly: `journalctl *` would authorise
+`--vacuum-*`, which deletes logs; `systemctl *` would authorise `stop` and
+`mask`; `ssh <ha> *` would authorise any command on the Home Assistant
+machine. Allowlisting `check-homeassistant.sh` instead covers the SSH it does
+internally without granting that.
+
+Still outstanding, and deliberately left to the owner:
+`permissions.defaultMode: "auto"` has to be set in `~/.claude/settings.json`
+(it is ignored from project settings). Claude's own classifier blocked it from
+writing that file, which is correct — a tool should not grant itself
+permissions.
+
+**The allowlist alone is not sufficient**, and the reason was nearly missed.
+The 2026-09-12 session appeared to be running in auto mode, which suggested
+the mode was already handled and only the allowlist was needed. It was not:
+the owner had switched that *one session* from Manual to Auto by hand during
+the morning. Nothing persists it, so a new session — the scheduled task
+included — starts in `default` and prompts for anything the allowlist does not
+name. The allow rules cover the routine's known commands; `defaultMode` is
+what stops it stalling on an unanticipated one.
+
+## 2026-09-12 — Quote the backup unit's NAME_PREFIX
+
+Found during the weekly report. `ha-backup.service` set the backup name prefix
+unquoted:
+
+```ini
+Environment=NAME_PREFIX=gaming-pc weekly config
+```
+
+systemd splits `Environment=` on whitespace, so this set `NAME_PREFIX=gaming-pc`
+and then discarded `weekly` and `config` as two malformed assignments. The only
+evidence was two lines in the user journal on every daemon-reload:
+
+```
+Invalid environment assignment, ignoring: weekly
+Invalid environment assignment, ignoring: config
+```
+
+Fixed by quoting the whole assignment in
+`roles/homeassistant/tasks/main.yml` — `Environment="NAME_PREFIX={{ ha_backup_name_prefix }}"`.
+Applied to the live unit the same day, four minutes before the 09:34 timer
+firing, so no further backup was written with the truncated name.
+`systemctl --user show ha-backup.service -p Environment` now returns the full
+value as a single assignment.
+
+**Impact was cosmetic, and the reason is worth recording** so nobody assumes
+the pruning was at risk. `ha-backup.sh` prunes with
+`grep -F "${NAME_PREFIX}"`, and the truncated value is a *prefix* of the
+correct one — so pruning still matched the older, correctly-named backups. Had
+the truncation gone the other way (a longer or different string) the script
+would have stopped recognising its own backups and pruning would have silently
+stopped.
+
+Note that `ha_backup_name_prefix` is the only one of these variables containing
+spaces; the rest are single tokens and are left unquoted. The neighbouring
+`ha-health.service` block was checked and needs no change.
+
 ## 2026-09-12 — DP-2 cable fault declared resolved
 
 **The cable was the cause. Eleven days and 17 wake cycles after the change, the
