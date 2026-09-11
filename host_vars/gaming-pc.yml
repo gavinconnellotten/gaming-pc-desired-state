@@ -52,8 +52,10 @@ smb_mounts:
   #
   # Addressed by IP, not hostname. The Shield's SMB advertises itself as
   # "localhost server (Samba, Ubuntu)", so its own name is not to be trusted.
-  # The tradeoff is real: a DHCP change breaks this mount, so the Shield wants
-  # a static lease on the router.
+  # Safe to hard-code because the Shield holds a STATIC DHCP RESERVATION
+  # (confirmed 2026-09-12) — without that, an address change would break this
+  # mount silently. If the router is ever replaced, that reservation has to be
+  # recreated, and it is not something this repo can assert.
   #
   # Its own credential file. Same username as the Home Assistant shares, but a
   # different machine and a different password — one shared file would break

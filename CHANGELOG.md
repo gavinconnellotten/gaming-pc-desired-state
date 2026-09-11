@@ -17,8 +17,10 @@ mounts but cannot be used.
 Four things differ from the three Home Assistant mounts, each for a reason:
 
 - **Addressed by IP.** The Shield's SMB advertises itself as "localhost server
-  (Samba, Ubuntu)", so its own hostname is not trustworthy. The tradeoff is
-  real — a DHCP change breaks the mount, so the Shield wants a static lease.
+  (Samba, Ubuntu)", so its own hostname is not trustworthy. Safe to hard-code
+  because the Shield holds a static DHCP reservation, confirmed the same day.
+  That reservation is now load-bearing and lives on the router, so a router
+  replacement has to recreate it — this repo cannot assert it.
 - **Its own credential file.** Same username as the Home Assistant shares, but
   a different machine and password. One shared file would break all four mounts
   the moment either password changed.
